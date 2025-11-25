@@ -11,12 +11,10 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
       // Reset form state when switching modes
       setEmail("");
       setPassword("");
-      setName("");
       setError("");
       setSuccessMessage("");
     }
   }, [initialMode]);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +33,6 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
   const passwordValidation = useMemo(() => {
     if (!password) {
       return {
-        doesNotContainName: null,
         doesNotContainEmail: null,
         minLength: null,
         hasNumberOrSymbol: null,
@@ -43,8 +40,6 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
       };
     }
 
-    // Check if password contains name (case-insensitive)
-    const containsName = name ? password.toLowerCase().includes(name.toLowerCase().trim()) : false;
     // Check if password contains email (check both full email and local part before @)
     const emailLower = email.toLowerCase().trim();
     const emailLocal = emailLower.split('@')[0];
@@ -53,29 +48,26 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
     const minLength = password.length >= 8;
     const hasNumberOrSymbol = /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
 
-    const doesNotContainName = !containsName;
     const doesNotContainEmail = !containsEmail;
 
     // Calculate strength based on passed rules
-    const passedRules = [minLength, hasNumberOrSymbol, doesNotContainName, doesNotContainEmail].filter(Boolean).length;
+    const passedRules = [minLength, hasNumberOrSymbol, doesNotContainEmail].filter(Boolean).length;
     let strength = "weak";
-    if (passedRules === 4) {
+    if (passedRules === 3) {
       strength = "strong";
     } else if (passedRules >= 2) {
       strength = "medium";
     }
 
     return {
-      doesNotContainName,
       doesNotContainEmail,
       minLength,
       hasNumberOrSymbol,
       strength
     };
-  }, [password, name, email]);
+  }, [password, email]);
 
   const isPasswordValid = passwordValidation.strength && 
-    passwordValidation.doesNotContainName === true && 
     passwordValidation.doesNotContainEmail === true && 
     passwordValidation.minLength === true && 
     passwordValidation.hasNumberOrSymbol === true;
@@ -266,28 +258,6 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
       </h2>
 
       <form onSubmit={handleSubmit}>
-        {/* Name Field */}
-        <div style={{ marginBottom: "20px" }}>
-          <label style={{ 
-            display: "block", 
-            marginBottom: "8px", 
-            fontSize: "14px", 
-            fontWeight: 500,
-            color: "var(--text)"
-          }}>
-            Name
-          </label>
-          <input
-            className="input"
-            type="text"
-            placeholder="John Addison"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            style={{ width: "100%" }}
-          />
-        </div>
-
         {/* Email Field */}
         <div style={{ marginBottom: "20px" }}>
           <label style={{ 
@@ -398,10 +368,10 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
                   alignItems: "center", 
                   gap: "8px",
                   marginBottom: "8px",
-                  color: passwordValidation.doesNotContainName && passwordValidation.doesNotContainEmail ? "#16a34a" : "#dc2626"
+                  color: passwordValidation.doesNotContainEmail ? "#16a34a" : "#dc2626"
                 }}>
-                  <span>{passwordValidation.doesNotContainName && passwordValidation.doesNotContainEmail ? "✓" : "✗"}</span>
-                  <span>Cannot contain your name or email address</span>
+                  <span>{passwordValidation.doesNotContainEmail ? "✓" : "✗"}</span>
+                  <span>Cannot contain your email address</span>
                 </div>
                 <div style={{ 
                   display: "flex", 
