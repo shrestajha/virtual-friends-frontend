@@ -25,6 +25,15 @@ async function http(method, path, body) {
 
 // character + chat APIs
 export const listCharacters = () => http("GET", "/characters");
+// Get only the user's assigned characters (fallback to listCharacters if endpoint doesn't exist)
+export const getMyCharacters = async () => {
+  try {
+    return await http("GET", "/characters/my");
+  } catch (e) {
+    // If endpoint doesn't exist, fallback to regular list
+    return await listCharacters();
+  }
+};
 export const sendChat = (characterId, user_message) =>
   http("POST", "/chat", { character_id: characterId, user_message });
 
@@ -39,6 +48,12 @@ export const register = async (email, password) => {
     const text = await res.text();
     throw new Error(`Register failed: ${text}`);
   }
+  const data = await res.json();
+  // Store assigned characters if returned
+  if (data.characters && Array.isArray(data.characters)) {
+    localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
+  }
+  return data;
 };
 
 export const login = async (email, password) => {
@@ -57,6 +72,7 @@ export const login = async (email, password) => {
 
 export const logout = () => {
   localStorage.removeItem("token");
+  localStorage.removeItem("assignedCharacters");
 };
 
 export const me = async () => {
@@ -65,5 +81,10 @@ export const me = async () => {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Not authenticated");
-  return res.json();
+  const data = await res.json();
+  // Store assigned characters if returned in user data
+  if (data.characters && Array.isArray(data.characters)) {
+    localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
+  }
+  return data;
 };

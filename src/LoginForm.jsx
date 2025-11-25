@@ -16,11 +16,14 @@ export default function LoginForm({ onSuccess }) {
         setError("");
         onSuccess();
       } else {
-        // Sign up and get assigned character
+        // Sign up and get assigned characters
         const res = await register(email, password);
         // If your backend returns character info:
         if (res.character) {
           setAssignedCharacter(res.character);
+        } else if (res.characters && Array.isArray(res.characters) && res.characters.length > 0) {
+          // If backend returns multiple characters, show the first one
+          setAssignedCharacter(res.characters[0]);
         } else {
           // fallback — auto-login if no character in response
           await login(email, password);

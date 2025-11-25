@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { listCharacters, sendChat, me, logout } from "./api";
+import { listCharacters, getMyCharacters, sendChat, me, logout } from "./api";
 import LoginForm from "./LoginForm";
 
 // Modern, mobile-friendly character picker
@@ -45,7 +45,44 @@ export default function App() {
 
   const refreshCharacters = async () => {
     try {
-      const data = await listCharacters();
+      // First try to get assigned characters from localStorage
+      const stored = localStorage.getItem("assignedCharacters");
+      if (stored) {
+        try {
+          const assignedChars = JSON.parse(stored);
+          if (Array.isArray(assignedChars) && assignedChars.length > 0) {
+            setCharacters(assignedChars);
+            // If nothing selected yet or selected disappeared, pick the first
+            if (!selected || !assignedChars.find((c) => c.id === selected.id)) {
+              setSelected(assignedChars[0]);
+            }
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to parse stored characters", e);
+        }
+      }
+      
+      // Fallback: try API endpoint for assigned characters, or use regular list
+      let data;
+      try {
+        data = await getMyCharacters();
+      } catch (e) {
+        // If /characters/my doesn't exist, try regular endpoint
+        // The backend might already filter by user
+        data = await listCharacters();
+      }
+      
+      // Filter to only show assigned characters if we have stored ones
+      if (stored) {
+        try {
+          const assignedIds = JSON.parse(stored).map(c => c.id);
+          data = data.filter(c => assignedIds.includes(c.id));
+        } catch (e) {
+          // If parsing fails, use all characters (fallback)
+        }
+      }
+      
       setCharacters(data);
       // If nothing selected yet or selected disappeared, pick the first
       if (data.length) {
