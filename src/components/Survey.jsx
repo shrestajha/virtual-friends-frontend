@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function Survey() {
-  const surveyUrl = "https://forms.gle/NXXuDvhnQ8rq8KU76";
+  const surveyUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeRZ74lzonv3_uGe1uSZbV8NvSGslNiuLCtrm81g-FN_usAag/viewform?usp=header";
 
   return (
     <div className="container center" style={{ 
