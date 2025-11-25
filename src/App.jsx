@@ -41,13 +41,14 @@ export default function App() {
           setView("login");
         } else if (path === "/signup") {
           setView("signup");
-        } else {
+        } else if (path === "/") {
           // Default to start (which shows login/signup)
           setView("start");
         }
       }
     };
 
+    // Check on mount and when user state changes
     updateViewFromPath();
 
     // Listen for popstate events (back/forward buttons)
@@ -55,10 +56,17 @@ export default function App() {
       updateViewFromPath();
     };
 
+    // Also listen for hashchange (though we're not using hash routing)
+    const handleHashChange = () => {
+      updateViewFromPath();
+    };
+
     window.addEventListener("popstate", handlePopState);
+    window.addEventListener("hashchange", handleHashChange);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("hashchange", handleHashChange);
     };
   }, [user]);
 
@@ -87,19 +95,21 @@ export default function App() {
       } else if (path === "/signup") {
         setView("signup");
       }
-    } else {
-      // For non-auth pages, check if logged in
-      me()
-        .then((u) => {
-          setUser(u);
-          setView("chat");
-          loadAssignedCharacters(u);
-        })
-        .catch(() => {
-          // Not logged in, default to start (which shows login/signup)
-          setView("start");
-        });
+      // Don't check auth if on auth page
+      return;
     }
+    
+    // For non-auth pages, check if logged in
+    me()
+      .then((u) => {
+        setUser(u);
+        setView("chat");
+        loadAssignedCharacters(u);
+      })
+      .catch(() => {
+        // Not logged in, default to start (which shows login/signup)
+        setView("start");
+      });
   }, []);
 
   // Load assigned characters directly from /auth/me response
@@ -262,10 +272,22 @@ export default function App() {
 
   // Show login/signup form
   if (view === "start" || view === "login" || view === "signup") {
-    const initialMode = view === "signup" ? "register" : view === "login" ? "login" : "register";
+    // Determine mode based on view and current pathname
+    const currentPath = window.location.pathname;
+    let initialMode = "register"; // default
+    if (view === "login" || currentPath === "/login") {
+      initialMode = "login";
+    } else if (view === "signup" || currentPath === "/signup") {
+      initialMode = "register";
+    } else if (view === "start") {
+      // Default to register for start view
+      initialMode = "register";
+    }
+    
     return (
       <div className="container center">
         <LoginForm
+          key={view} // Force re-render when view changes
           initialMode={initialMode}
           loginMessage={loginMessage}
           onSuccess={async () => {

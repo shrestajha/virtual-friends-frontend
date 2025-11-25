@@ -3,6 +3,19 @@ import { login, register } from "./api";
 
 export default function LoginForm({ onSuccess, initialMode = "register", loginMessage = "" }) {
   const [mode, setMode] = useState(initialMode); // login | register
+
+  // Update mode when initialMode prop changes (e.g., when route changes)
+  React.useEffect(() => {
+    if (initialMode !== mode) {
+      setMode(initialMode);
+      // Reset form state when switching modes
+      setEmail("");
+      setPassword("");
+      setName("");
+      setError("");
+      setSuccessMessage("");
+    }
+  }, [initialMode]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -197,7 +210,9 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
               href="/forgot-password"
               onClick={(e) => {
                 e.preventDefault();
-                window.location.href = "/forgot-password";
+                // Use pushState for client-side navigation
+                window.history.pushState({}, "", "/forgot-password");
+                window.dispatchEvent(new PopStateEvent("popstate"));
               }}
               style={{ fontSize: "14px", color: "var(--accent)", textDecoration: "none", cursor: "pointer" }}
             >
@@ -430,7 +445,9 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
           href="/login"
           onClick={(e) => {
             e.preventDefault();
-            window.location.href = "/login";
+            // Use pushState for client-side navigation
+            window.history.pushState({}, "", "/login");
+            window.dispatchEvent(new PopStateEvent("popstate"));
           }}
           className="link"
         >
