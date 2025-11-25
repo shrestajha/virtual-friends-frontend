@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { listCharacters, sendChat, me, logout } from "./api";
 import LoginForm from "./LoginForm";
-import { filterEICI } from "./utils";
 
 // Modern, mobile-friendly character picker
 function CharacterPicker({ items, selectedId, onChange }) {
@@ -135,23 +134,6 @@ export default function App() {
           Logout
         </button>
       </div>
-
-      {/* Character info card (without EI/CI) */}
-      {selected && (
-        <div className="character-card">
-          <div className="label" style={{ marginBottom: 8 }}>About {selected.name}</div>
-          {selected.description && (
-            <div style={{ color: "var(--text)", fontSize: "15px", lineHeight: "1.6" }}>
-              {filterEICI(selected.description)}
-            </div>
-          )}
-          {!selected.description && (
-            <div style={{ color: "var(--muted)", fontSize: "14px", fontStyle: "italic" }}>
-              No description available.
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Chat area */}
       <div className="chat">
