@@ -27,19 +27,43 @@ async function http(method, path, body) {
 export const listCharacters = () => http("GET", "/characters");
 // Get only the user's assigned characters
 export const getMyCharacters = async () => {
-  try {
-    const response = await http("GET", "/characters/my-characters");
-    // Handle both { characters: [...] } and direct array response
-    return response.characters || response;
-  } catch (e) {
-    // Fallback: try alternative endpoint
+  // Try multiple endpoint variations
+  const endpoints = [
+    "/characters/my-characters",
+    "/api/characters/my-characters",
+    "/characters/my",
+    "/api/characters/my"
+  ];
+  
+  for (const endpoint of endpoints) {
     try {
-      return await http("GET", "/characters/my");
-    } catch (e2) {
-      console.error("Failed to fetch assigned characters", e2);
-      return [];
+      console.log(`Trying endpoint: ${endpoint}`);
+      const response = await http("GET", endpoint);
+      console.log(`Response from ${endpoint}:`, response);
+      // Handle both { characters: [...] } and direct array response
+      const result = response.characters || response;
+      if (Array.isArray(result) && result.length > 0) {
+        return result;
+      }
+    } catch (e) {
+      console.log(`Endpoint ${endpoint} failed:`, e.message);
+      continue;
     }
   }
+  
+  // Final fallback: try regular characters endpoint (might be filtered by backend)
+  try {
+    console.log("Trying fallback: /characters");
+    const response = await http("GET", "/characters");
+    const result = Array.isArray(response) ? response : (response.characters || []);
+    if (result.length > 0) {
+      return result;
+    }
+  } catch (e) {
+    console.error("All endpoints failed", e);
+  }
+  
+  return [];
 };
 // Get specific character details
 export const getCharacter = (characterId) => http("GET", `/characters/${characterId}`);

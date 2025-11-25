@@ -15,7 +15,9 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Count user messages from state
@@ -46,16 +48,41 @@ export default function App() {
   }, []);
 
   const refreshCharacters = async () => {
+    setLoadingCharacters(true);
+    setError(null);
     try {
       const data = await getMyCharacters();
+      console.log("Fetched characters data:", data);
       
       // Ensure we have an array
       const characterArray = Array.isArray(data) ? data : (data.characters || []);
       
+      console.log("Character array:", characterArray);
+      
       if (characterArray.length === 0) {
         console.warn("No assigned characters found");
+        // Try to load from localStorage as fallback
+        const stored = localStorage.getItem("assignedCharacters");
+        if (stored) {
+          try {
+            const storedChars = JSON.parse(stored);
+            if (Array.isArray(storedChars) && storedChars.length > 0) {
+              console.log("Using stored characters:", storedChars);
+              setCharacters(storedChars);
+              if (!selected || !storedChars.find((c) => c.id === selected.id)) {
+                setSelected(storedChars[0]);
+              }
+              setLoadingCharacters(false);
+              return;
+            }
+          } catch (parseError) {
+            console.error("Failed to parse stored characters", parseError);
+          }
+        }
+        setError("No characters assigned. Please contact support.");
         setCharacters([]);
         setSelected(null);
+        setLoadingCharacters(false);
         return;
       }
 
@@ -70,16 +97,19 @@ export default function App() {
       }
     } catch (e) {
       console.error("Failed to load characters", e);
+      setError(`Failed to load characters: ${e.message}`);
       // Try to load from localStorage as fallback
       const stored = localStorage.getItem("assignedCharacters");
       if (stored) {
         try {
           const storedChars = JSON.parse(stored);
           if (Array.isArray(storedChars) && storedChars.length > 0) {
+            console.log("Using stored characters as fallback:", storedChars);
             setCharacters(storedChars);
             if (!selected || !storedChars.find((c) => c.id === selected.id)) {
               setSelected(storedChars[0]);
             }
+            setLoadingCharacters(false);
             return;
           }
         } catch (parseError) {
@@ -88,6 +118,8 @@ export default function App() {
       }
       setCharacters([]);
       setSelected(null);
+    } finally {
+      setLoadingCharacters(false);
     }
   };
 
@@ -168,21 +200,53 @@ export default function App() {
             setView("start");
             setMessages([]);
             setUserMessageCount(0);
+            setCharacters([]);
+            setSelected(null);
           }}
         >
           Logout
         </button>
       </div>
 
+      {/* Loading state */}
+      {loadingCharacters && (
+        <div style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>
+          Loading characters...
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && !loadingCharacters && (
+        <div style={{ 
+          padding: "16px", 
+          background: "#fee2e2", 
+          color: "#991b1b", 
+          borderRadius: "8px", 
+          marginBottom: "16px",
+          border: "1px solid #fecaca"
+        }}>
+          {error}
+          <button
+            onClick={refreshCharacters}
+            className="button small"
+            style={{ marginTop: "8px", display: "block" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Character Switcher */}
-      <CharacterSwitcher
-        characters={characters}
-        selectedId={selected?.id}
-        onSelect={handleSelectCharacter}
-      />
+      {!loadingCharacters && characters.length > 0 && (
+        <CharacterSwitcher
+          characters={characters}
+          selectedId={selected?.id}
+          onSelect={handleSelectCharacter}
+        />
+      )}
 
       {/* Character Profile */}
-      <CharacterProfile character={selected} />
+      {selected && <CharacterProfile character={selected} />}
 
       {/* Chat area */}
       <div className="chat">
