@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { login, register } from "./api";
+import { filterEICI } from "./utils";
 
 export default function LoginForm({ onSuccess }) {
   const [mode, setMode] = useState("login"); // login | register
@@ -48,7 +49,7 @@ export default function LoginForm({ onSuccess }) {
           <h3 style={{ marginBottom: 12, fontSize: "20px", fontWeight: 600 }}>{assignedCharacter.name}</h3>
           {assignedCharacter.description && (
             <p style={{ color: "var(--text)", lineHeight: "1.6", margin: 0 }}>
-              {assignedCharacter.description}
+              {filterEICI(assignedCharacter.description)}
             </p>
           )}
         </div>
