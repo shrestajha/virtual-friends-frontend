@@ -18,6 +18,10 @@ export default function LoginForm({ onSuccess }) {
       } else {
         // Sign up and get assigned characters
         const res = await register(email, password);
+        // Store assigned characters in localStorage
+        if (res.characters && Array.isArray(res.characters)) {
+          localStorage.setItem("assignedCharacters", JSON.stringify(res.characters));
+        }
         // If your backend returns character info:
         if (res.character) {
           setAssignedCharacter(res.character);

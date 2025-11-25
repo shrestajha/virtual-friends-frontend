@@ -25,15 +25,24 @@ async function http(method, path, body) {
 
 // character + chat APIs
 export const listCharacters = () => http("GET", "/characters");
-// Get only the user's assigned characters (fallback to listCharacters if endpoint doesn't exist)
+// Get only the user's assigned characters
 export const getMyCharacters = async () => {
   try {
-    return await http("GET", "/characters/my");
+    const response = await http("GET", "/characters/my-characters");
+    // Handle both { characters: [...] } and direct array response
+    return response.characters || response;
   } catch (e) {
-    // If endpoint doesn't exist, fallback to regular list
-    return await listCharacters();
+    // Fallback: try alternative endpoint
+    try {
+      return await http("GET", "/characters/my");
+    } catch (e2) {
+      console.error("Failed to fetch assigned characters", e2);
+      return [];
+    }
   }
 };
+// Get specific character details
+export const getCharacter = (characterId) => http("GET", `/characters/${characterId}`);
 export const sendChat = (characterId, user_message) =>
   http("POST", "/chat", { character_id: characterId, user_message });
 
@@ -87,4 +96,11 @@ export const me = async () => {
     localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
   }
   return data;
+};
+
+// Store assigned characters helper
+export const storeAssignedCharacters = (characters) => {
+  if (characters && Array.isArray(characters)) {
+    localStorage.setItem("assignedCharacters", JSON.stringify(characters));
+  }
 };

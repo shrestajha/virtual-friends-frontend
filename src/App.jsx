@@ -1,36 +1,38 @@
-import React, { useEffect, useState } from "react";
-import { listCharacters, getMyCharacters, sendChat, me, logout } from "./api";
+import React, { useEffect, useState, useRef } from "react";
+import { getMyCharacters, sendChat, me, logout } from "./api";
 import LoginForm from "./LoginForm";
+import CharacterSwitcher from "./components/CharacterSwitcher";
+import CharacterProfile from "./components/CharacterProfile";
+import Survey from "./components/Survey";
 
-// Modern, mobile-friendly character picker
-function CharacterPicker({ items, selectedId, onChange }) {
-  if (!items?.length) return null;
-  return (
-    <select
-      className="select"
-      value={selectedId || ""}
-      onChange={(e) => onChange(Number(e.target.value))}
-      style={{ minWidth: 200, maxWidth: 300 }}
-      aria-label="Choose a character"
-      title="Choose a character"
-    >
-      {items.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
-  );
-}
+const MAX_MESSAGES = 15;
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("start"); // 'start' | 'chat'
+  const [view, setView] = useState("start"); // 'start' | 'chat' | 'survey'
   const [characters, setCharacters] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [userMessageCount, setUserMessageCount] = useState(0);
+  const messagesEndRef = useRef(null);
+
+  // Count user messages from state
+  useEffect(() => {
+    const count = messages.filter(m => m.role === "user").length;
+    setUserMessageCount(count);
+    
+    // Show survey after 15 user messages
+    if (count >= MAX_MESSAGES && view === "chat") {
+      setView("survey");
+    }
+  }, [messages, view]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // On mount: check if logged in and preload characters
   useEffect(() => {
@@ -45,55 +47,47 @@ export default function App() {
 
   const refreshCharacters = async () => {
     try {
-      // First try to get assigned characters from localStorage
-      const stored = localStorage.getItem("assignedCharacters");
-      if (stored) {
-        try {
-          const assignedChars = JSON.parse(stored);
-          if (Array.isArray(assignedChars) && assignedChars.length > 0) {
-            setCharacters(assignedChars);
-            // If nothing selected yet or selected disappeared, pick the first
-            if (!selected || !assignedChars.find((c) => c.id === selected.id)) {
-              setSelected(assignedChars[0]);
-            }
-            return;
-          }
-        } catch (e) {
-          console.error("Failed to parse stored characters", e);
-        }
-      }
+      const data = await getMyCharacters();
       
-      // Fallback: try API endpoint for assigned characters, or use regular list
-      let data;
-      try {
-        data = await getMyCharacters();
-      } catch (e) {
-        // If /characters/my doesn't exist, try regular endpoint
-        // The backend might already filter by user
-        data = await listCharacters();
-      }
+      // Ensure we have an array
+      const characterArray = Array.isArray(data) ? data : (data.characters || []);
       
-      // Filter to only show assigned characters if we have stored ones
-      if (stored) {
-        try {
-          const assignedIds = JSON.parse(stored).map(c => c.id);
-          data = data.filter(c => assignedIds.includes(c.id));
-        } catch (e) {
-          // If parsing fails, use all characters (fallback)
-        }
-      }
-      
-      setCharacters(data);
-      // If nothing selected yet or selected disappeared, pick the first
-      if (data.length) {
-        if (!selected || !data.find((c) => c.id === selected.id)) {
-          setSelected(data[0]);
-        }
-      } else {
+      if (characterArray.length === 0) {
+        console.warn("No assigned characters found");
+        setCharacters([]);
         setSelected(null);
+        return;
+      }
+
+      // Store in localStorage for persistence
+      localStorage.setItem("assignedCharacters", JSON.stringify(characterArray));
+      
+      setCharacters(characterArray);
+      
+      // Select first character if none selected
+      if (!selected || !characterArray.find((c) => c.id === selected.id)) {
+        setSelected(characterArray[0]);
       }
     } catch (e) {
       console.error("Failed to load characters", e);
+      // Try to load from localStorage as fallback
+      const stored = localStorage.getItem("assignedCharacters");
+      if (stored) {
+        try {
+          const storedChars = JSON.parse(stored);
+          if (Array.isArray(storedChars) && storedChars.length > 0) {
+            setCharacters(storedChars);
+            if (!selected || !storedChars.find((c) => c.id === selected.id)) {
+              setSelected(storedChars[0]);
+            }
+            return;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse stored characters", parseError);
+        }
+      }
+      setCharacters([]);
+      setSelected(null);
     }
   };
 
@@ -105,11 +99,12 @@ export default function App() {
   };
 
   const handleSend = async () => {
-    if (!input || !selected) return;
-    const userMsg = { role: "user", content: input };
+    if (!input.trim() || !selected || userMessageCount >= MAX_MESSAGES) return;
+    
+    const userMsg = { role: "user", content: input.trim() };
     setMessages((prev) => [...prev, userMsg]);
 
-    const toSend = input;
+    const toSend = input.trim();
     setInput("");
     setLoading(true);
 
@@ -119,11 +114,21 @@ export default function App() {
       setMessages((prev) => [...prev, botMsg]);
     } catch (e) {
       alert("Error sending message");
+      // Remove the user message if send failed
+      setMessages((prev) => prev.filter((m, i) => i !== prev.length - 1 || m.role !== "user"));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Show login form
   if (view === "start") {
     return (
       <div className="container center">
@@ -139,38 +144,45 @@ export default function App() {
     );
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  // Show survey after 15 messages
+  if (view === "survey") {
+    return <Survey />;
+  }
 
+  // Show chat interface
   return (
     <div className="container">
-      {/* Header with character picker + logout */}
+      {/* Header with logout */}
       <div className="header">
         <div className="brand" style={{ marginRight: "auto" }}>
           Welcome, {user?.email || "User"}
         </div>
-
-        <CharacterPicker
-          items={characters}
-          selectedId={selected?.id || ""}
-          onChange={handleSelectCharacter}
-        />
-
+        <div style={{ fontSize: "14px", color: "var(--muted)", marginRight: "12px" }}>
+          Messages: {userMessageCount}/{MAX_MESSAGES}
+        </div>
         <button
           className="button small"
           onClick={() => {
             logout();
             setUser(null);
             setView("start");
+            setMessages([]);
+            setUserMessageCount(0);
           }}
         >
           Logout
         </button>
       </div>
+
+      {/* Character Switcher */}
+      <CharacterSwitcher
+        characters={characters}
+        selectedId={selected?.id}
+        onSelect={handleSelectCharacter}
+      />
+
+      {/* Character Profile */}
+      <CharacterProfile character={selected} />
 
       {/* Chat area */}
       <div className="chat">
@@ -193,23 +205,40 @@ export default function App() {
               <span style={{ opacity: 0.6 }}>Thinking...</span>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="composer">
-          <input
-            className="input"
+          <textarea
+            className="textarea"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // Auto-resize textarea
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+            }}
             onKeyDown={handleKeyDown}
             placeholder={
-              selected ? `Message ${selected.name}…` : "Choose a character…"
+              selected 
+                ? userMessageCount >= MAX_MESSAGES
+                  ? "You have reached the message limit"
+                  : `Message ${selected.name}… (Press Enter to send, Shift+Enter for new line)`
+                : "Choose a character…"
             }
-            disabled={loading || !selected}
+            disabled={loading || !selected || userMessageCount >= MAX_MESSAGES}
+            rows={1}
+            style={{
+              resize: "none",
+              minHeight: "44px",
+              maxHeight: "120px",
+              overflowY: "auto"
+            }}
           />
           <button
             className="button"
             onClick={handleSend}
-            disabled={loading || !input || !selected}
+            disabled={loading || !input.trim() || !selected || userMessageCount >= MAX_MESSAGES}
           >
             Send
           </button>
