@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { listCharacters, sendChat, me, logout } from "./api";
 import LoginForm from "./LoginForm";
 
-// Simple, mobile-friendly character picker
+// Modern, mobile-friendly character picker
 function CharacterPicker({ items, selectedId, onChange }) {
   if (!items?.length) return null;
   return (
@@ -10,7 +10,7 @@ function CharacterPicker({ items, selectedId, onChange }) {
       className="select"
       value={selectedId || ""}
       onChange={(e) => onChange(Number(e.target.value))}
-      style={{ minWidth: 220 }}
+      style={{ minWidth: 200, maxWidth: 300 }}
       aria-label="Choose a character"
       title="Choose a character"
     >
@@ -102,13 +102,19 @@ export default function App() {
     );
   }
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <div className="container">
       {/* Header with character picker + logout */}
-      <div className="header" style={{ gap: 12, flexWrap: "wrap" }}>
+      <div className="header">
         <div className="brand" style={{ marginRight: "auto" }}>
           Welcome, {user?.email || "User"}
-          {selected ? ` — Chat with ${selected.name}` : ""}
         </div>
 
         <CharacterPicker
@@ -129,20 +135,31 @@ export default function App() {
         </button>
       </div>
 
-      {/* Optional: “About this character” summary */}
+      {/* Character info card (without EI/CI) */}
       {selected && (
-        <div className="panel" style={{ padding: 12, marginBottom: 12 }}>
-          <div className="label">About {selected.name}</div>
-          <div className="meta" style={{ margin: "6px 0" }}>
-            EI: {selected.ei_level}/10 &nbsp;·&nbsp; CI: {selected.ci_level}/10
-          </div>
-          {selected.description && <div>{selected.description}</div>}
+        <div className="character-card">
+          <div className="label" style={{ marginBottom: 8 }}>About {selected.name}</div>
+          {selected.description && (
+            <div style={{ color: "var(--text)", fontSize: "15px", lineHeight: "1.6" }}>
+              {selected.description}
+            </div>
+          )}
+          {!selected.description && (
+            <div style={{ color: "var(--muted)", fontSize: "14px", fontStyle: "italic" }}>
+              No description available.
+            </div>
+          )}
         </div>
       )}
 
       {/* Chat area */}
       <div className="chat">
         <div className="messages">
+          {messages.length === 0 && selected && (
+            <div className="meta" style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>
+              Start a conversation with {selected.name}...
+            </div>
+          )}
           {messages.map((m, i) => (
             <div
               className={`bubble ${m.role === "user" ? "user" : "bot"}`}
@@ -151,6 +168,11 @@ export default function App() {
               {m.content}
             </div>
           ))}
+          {loading && (
+            <div className="bubble bot">
+              <span style={{ opacity: 0.6 }}>Thinking...</span>
+            </div>
+          )}
         </div>
 
         <div className="composer">
@@ -158,6 +180,7 @@ export default function App() {
             className="input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={
               selected ? `Message ${selected.name}…` : "Choose a character…"
             }

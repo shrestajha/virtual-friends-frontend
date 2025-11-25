@@ -4,19 +4,18 @@ import { createCharacter } from '../api';
 export default function CharacterForm({ onCreated }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [ei, setEi] = useState(8);
-  const [ci, setCi] = useState(6);
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Set default EI/CI values (hidden from UI)
       const ch = await createCharacter({
         name,
         description,
-        ei_level: Number(ei),
-        ci_level: Number(ci),
+        ei_level: 8, // Default value
+        ci_level: 6, // Default value
         base_prompt: ''
       });
       setName(''); setDescription('');
@@ -29,22 +28,30 @@ export default function CharacterForm({ onCreated }) {
   };
 
   return (
-    <form onSubmit={submit} className="panel" style={{padding:12}}>
-      <div className="label">Create a Character</div>
-      <div style={{display:'grid', gap:8}}>
-        <input className="input" placeholder="Name" value={name} onChange={e=>setName(e.target.value)} required />
-        <textarea className="textarea" rows={3} placeholder="Description (optional)" value={description} onChange={e=>setDescription(e.target.value)} />
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
-          <div>
-            <div className="label">Emotional Intelligence</div>
-            <input className="input" type="number" min="0" max="10" value={ei} onChange={e=>setEi(e.target.value)} />
-          </div>
-          <div>
-            <div className="label">Cognitive Intelligence</div>
-            <input className="input" type="number" min="0" max="10" value={ci} onChange={e=>setCi(e.target.value)} />
-          </div>
+    <form onSubmit={submit} className="panel" style={{padding: 20}}>
+      <div className="label" style={{ marginBottom: 16 }}>Create a Character</div>
+      <div style={{display:'grid', gap:16}}>
+        <div>
+          <input 
+            className="input" 
+            placeholder="Character name" 
+            value={name} 
+            onChange={e=>setName(e.target.value)} 
+            required 
+          />
         </div>
-        <button className="button" disabled={loading}>{loading ? 'Creating…' : 'Create character'}</button>
+        <div>
+          <textarea 
+            className="textarea" 
+            rows={4} 
+            placeholder="Description (optional)" 
+            value={description} 
+            onChange={e=>setDescription(e.target.value)} 
+          />
+        </div>
+        <button className="button" disabled={loading} style={{ width: '100%' }}>
+          {loading ? 'Creating…' : 'Create Character'}
+        </button>
       </div>
     </form>
   );

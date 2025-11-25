@@ -6,26 +6,70 @@ export default function LoginForm({ onSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [assignedCharacter, setAssignedCharacter] = useState(null); // <-- new state
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       if (mode === "login") {
         await login(email, password);
+        setError("");
+        onSuccess();
       } else {
-        await register(email, password);
-        await login(email, password);
+        // Sign up and get assigned character
+        const res = await register(email, password);
+        // If your backend returns character info:
+        if (res.character) {
+          setAssignedCharacter(res.character);
+        } else {
+          // fallback — auto-login if no character in response
+          await login(email, password);
+          onSuccess();
+        }
       }
-      setError("");
-      onSuccess();
     } catch (err) {
       setError(err.message || "Something went wrong");
     }
   };
 
+  // Show assigned character screen after signup
+  if (assignedCharacter) {
+    return (
+      <div className="panel" style={{ padding: 32, maxWidth: 480, margin: "40px auto", textAlign: "center" }}>
+        <h2 style={{ marginBottom: 16, fontSize: "24px", fontWeight: 600 }}>Welcome to Virtual Friends!</h2>
+        <p style={{ marginBottom: 20, color: "var(--muted)" }}>You've been paired with:</p>
+        <div
+          className="character-card"
+          style={{
+            textAlign: "left",
+            marginTop: "12px",
+          }}
+        >
+          <h3 style={{ marginBottom: 12, fontSize: "20px", fontWeight: 600 }}>{assignedCharacter.name}</h3>
+          {assignedCharacter.description && (
+            <p style={{ color: "var(--text)", lineHeight: "1.6", margin: 0 }}>
+              {assignedCharacter.description}
+            </p>
+          )}
+        </div>
+        <button
+          className="button"
+          style={{ marginTop: 24, width: "100%" }}
+          onClick={async () => {
+            await login(email, password);
+            onSuccess();
+          }}
+        >
+          Start Chatting
+        </button>
+      </div>
+    );
+  }
+
+  // Default login/register form
   return (
-    <div className="panel" style={{ padding: 24, maxWidth: 400, margin: "40px auto" }}>
-      <h2 style={{ textAlign: "center" }}>
+    <div className="panel" style={{ padding: 32, maxWidth: 400, margin: "40px auto" }}>
+      <h2 style={{ textAlign: "center", marginBottom: 24, fontSize: "24px", fontWeight: 600 }}>
         {mode === "login" ? "Log In" : "Create Account"}
       </h2>
 
@@ -47,9 +91,7 @@ export default function LoginForm({ onSuccess }) {
           required
           minLength={8}
           maxLength={128}
-
         />
-
 
         <button type="submit" className="button" style={{ width: "100%" }}>
           {mode === "login" ? "Log In" : "Sign Up"}
@@ -64,17 +106,6 @@ export default function LoginForm({ onSuccess }) {
             Don’t have an account?{" "}
             <span className="link" onClick={() => setMode("register")}>
               Sign up
-            </span>
-            <br />
-            <span
-              className="link"
-              onClick={() =>
-                alert(
-                  "If you forgot your password, please contact your instructor or site admin."
-                )
-              }
-            >
-              Forgot password?
             </span>
           </>
         ) : (

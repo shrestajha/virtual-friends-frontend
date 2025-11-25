@@ -5,15 +5,23 @@ export default function CharacterList({ items, selectedId, onSelect }){
     <div className="list">
       {items.map(ch => (
         <button key={ch.id} className="list-item" onClick={()=>onSelect(ch)} style={{textAlign:'left'}}>
-          <div>
-            <div style={{fontWeight:700}}>{ch.name}</div>
-            <div className="meta">EI {ch.ei_level}/10 • CI {ch.ci_level}/10</div>
-            {ch.description && <div className="meta" style={{marginTop:4}}>{ch.description}</div>}
+          <div style={{ flex: 1 }}>
+            <div style={{fontWeight:600, fontSize: '16px', marginBottom: 4}}>{ch.name}</div>
+            {ch.description && (
+              <div style={{fontSize: '14px', color: 'var(--muted)', lineHeight: '1.5', marginTop: 4}}>
+                {ch.description}
+              </div>
+            )}
+            {!ch.description && (
+              <div style={{fontSize: '13px', color: 'var(--muted)', fontStyle: 'italic'}}>
+                No description available
+              </div>
+            )}
           </div>
           <div className="badge">#{ch.id}</div>
         </button>
       ))}
-      {items.length === 0 && <div className="meta">No characters yet. Create one below.</div>}
+      {items.length === 0 && <div className="meta" style={{padding: '20px', textAlign: 'center'}}>No characters yet. Create one below.</div>}
     </div>
   );
 }
