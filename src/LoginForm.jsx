@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { login, register } from "./api";
 
 export default function LoginForm({ onSuccess }) {
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("register"); // login | register - default to register to show new design
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
