@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { sendChat } from '../api';
 
-export default function ChatBox({ characters, selectedCharacter, onCharacterChange, userMessageCount, maxMessages, onMessageSent }) {
+export default function ChatBox({ selectedCharacter, userMessageCount, maxMessages, onMessageSent }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,62 +51,13 @@ export default function ChatBox({ characters, selectedCharacter, onCharacterChan
     }
   };
 
-  // Character dropdown - only shows assigned characters
-  const CharacterDropdown = () => {
-    if (!characters || characters.length === 0) {
-      return (
-        <div style={{ padding: '12px', marginBottom: '12px', background: 'var(--panel)', borderRadius: '8px' }}>
-          <div className="meta">No characters assigned</div>
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ 
-          display: 'block', 
-          marginBottom: '8px', 
-          fontSize: '14px', 
-          fontWeight: 600,
-          color: 'var(--text)'
-        }}>
-          Select Character:
-        </label>
-        <select
-          className="select"
-          value={selectedCharacter?.id || ''}
-          onChange={(e) => {
-            const charId = Number(e.target.value);
-            const char = characters.find(c => c.id === charId);
-            if (char && onCharacterChange) {
-              onCharacterChange(char);
-            }
-          }}
-          style={{ width: '100%' }}
-        >
-          <option value="">Choose a character...</option>
-          {characters.map((char) => (
-            <option key={char.id} value={char.id}>
-              {char.name || `Character ${char.id}`}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
-  };
-
   return (
     <div className="panel chat">
-      {/* Character Dropdown - Only shows assigned characters */}
-      <div style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
-        <CharacterDropdown />
-      </div>
-
       {/* Messages */}
       <div ref={scroller} className="messages">
         {!selectedCharacter && (
           <div className="meta" style={{ textAlign: 'center', padding: '20px' }}>
-            Please select a character from the dropdown above to start chatting.
+            Please select a character using the buttons above to start chatting.
           </div>
         )}
         {selectedCharacter && messages.length === 0 && (
@@ -137,7 +88,7 @@ export default function ChatBox({ characters, selectedCharacter, onCharacterChan
               ? userMessageCount >= maxMessages
                 ? "You have reached the message limit"
                 : `Message ${selectedCharacter.name}… (Press Enter to send, Shift+Enter for new line)`
-              : 'Select a character first'
+              : 'Select a character using the buttons above'
           }
           disabled={!selectedCharacter || loading || userMessageCount >= maxMessages}
           value={input}

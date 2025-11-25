@@ -212,9 +212,7 @@ export default function App() {
       {/* ChatBox - Only shows assigned characters */}
       {!loadingCharacters && (
         <ChatBox
-          characters={characters}
           selectedCharacter={selected}
-          onCharacterChange={handleCharacterChange}
           userMessageCount={userMessageCount}
           maxMessages={MAX_MESSAGES}
           onMessageSent={handleMessageSent}
