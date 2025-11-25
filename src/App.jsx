@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
-import { getCharactersByIds, me, logout } from "./api";
+import React, { useEffect, useState } from "react";
+import { me, logout } from "./api";
 import LoginForm from "./LoginForm";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
@@ -36,30 +36,18 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Load assigned characters based on character_ids from /auth/me
-  const loadAssignedCharacters = async (userData) => {
+  // Load assigned characters directly from /auth/me response
+  const loadAssignedCharacters = (userData) => {
     setLoadingCharacters(true);
     setError(null);
     
     try {
-      // Get character_ids from user data (from /auth/me response)
-      let characterIds = [];
+      // Get characters array directly from /auth/me response
+      const charactersArray = userData.characters || [];
       
-      if (userData.character_ids && Array.isArray(userData.character_ids)) {
-        characterIds = userData.character_ids;
-      } else {
-        // Fallback: try localStorage
-        const storedIds = localStorage.getItem("assignedCharacterIds");
-        if (storedIds) {
-          try {
-            characterIds = JSON.parse(storedIds);
-          } catch (e) {
-            console.error("Failed to parse stored character IDs", e);
-          }
-        }
-      }
+      console.log("Characters from /auth/me:", charactersArray);
       
-      if (characterIds.length === 0) {
+      if (charactersArray.length === 0) {
         setError("No characters assigned. Please contact support.");
         setCharacters([]);
         setSelected(null);
@@ -67,30 +55,15 @@ export default function App() {
         return;
       }
 
-      console.log("Loading characters for IDs:", characterIds);
-      
-      // Fetch character details for ONLY the assigned character IDs
-      const characterData = await getCharactersByIds(characterIds);
-      
-      console.log("Loaded characters:", characterData);
-      
-      if (characterData.length === 0) {
-        setError("Failed to load character details. Please try again.");
-        setCharacters([]);
-        setSelected(null);
-        setLoadingCharacters(false);
-        return;
-      }
-
       // Store in localStorage for persistence
-      localStorage.setItem("assignedCharacters", JSON.stringify(characterData));
-      localStorage.setItem("assignedCharacterIds", JSON.stringify(characterIds));
+      localStorage.setItem("assignedCharacters", JSON.stringify(charactersArray));
       
-      setCharacters(characterData);
+      // Store characters directly in state
+      setCharacters(charactersArray);
       
       // Select first character if none selected
-      if (!selected || !characterData.find((c) => c.id === selected.id)) {
-        setSelected(characterData[0]);
+      if (!selected || !charactersArray.find((c) => c.id === selected.id)) {
+        setSelected(charactersArray[0]);
       }
     } catch (e) {
       console.error("Failed to load characters", e);
@@ -153,7 +126,7 @@ export default function App() {
             setUser(u);
             setView("chat");
             setUserMessageCount(0); // Reset message count on login
-            await loadAssignedCharacters(u);
+            loadAssignedCharacters(u);
           }}
         />
       </div>
