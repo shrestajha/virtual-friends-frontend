@@ -172,7 +172,7 @@ export default function LoginForm({ onSuccess }) {
   // Sign Up form with password validation
   return (
     <div className="panel" style={{ padding: 40, maxWidth: 480, margin: "40px auto" }}>
-      <h2 style={{ textAlign: "left", marginBottom: 32, fontSize: "28px", fontWeight: 700, color: "#1e40af" }}>
+      <h2 style={{ textAlign: "center", marginBottom: 32, fontSize: "28px", fontWeight: 700, color: "#1e40af" }}>
         Sign Up
       </h2>
 
