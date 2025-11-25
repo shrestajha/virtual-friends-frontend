@@ -67,6 +67,22 @@ export const getMyCharacters = async () => {
 };
 // Get specific character details
 export const getCharacter = (characterId) => http("GET", `/characters/${characterId}`);
+// Get multiple characters by their IDs
+export const getCharactersByIds = async (characterIds) => {
+  if (!characterIds || characterIds.length === 0) return [];
+  
+  // Fetch all characters in parallel
+  const promises = characterIds.map(id => 
+    getCharacter(id).catch(err => {
+      console.error(`Failed to fetch character ${id}:`, err);
+      return null;
+    })
+  );
+  
+  const results = await Promise.all(promises);
+  // Filter out any failed requests
+  return results.filter(char => char !== null);
+};
 export const sendChat = (characterId, user_message) =>
   http("POST", "/chat", { character_id: characterId, user_message });
 
@@ -115,7 +131,11 @@ export const me = async () => {
   });
   if (!res.ok) throw new Error("Not authenticated");
   const data = await res.json();
-  // Store assigned characters if returned in user data
+  // Store character_ids if returned in user data
+  if (data.character_ids && Array.isArray(data.character_ids)) {
+    localStorage.setItem("assignedCharacterIds", JSON.stringify(data.character_ids));
+  }
+  // Also handle if characters array is returned (for backward compatibility)
   if (data.characters && Array.isArray(data.characters)) {
     localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
   }

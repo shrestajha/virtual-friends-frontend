@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
-import { getMyCharacters, sendChat, me, logout } from "./api";
+import { getCharactersByIds, me, logout } from "./api";
 import LoginForm from "./LoginForm";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
 import Survey from "./components/Survey";
+import ChatBox from "./components/ChatBox";
 
 const MAX_MESSAGES = 15;
 
@@ -12,29 +13,17 @@ export default function App() {
   const [view, setView] = useState("start"); // 'start' | 'chat' | 'survey'
   const [characters, setCharacters] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
   const [error, setError] = useState(null);
-  const messagesEndRef = useRef(null);
 
-  // Count user messages from state
+  // Check message count and show survey
   useEffect(() => {
-    const count = messages.filter(m => m.role === "user").length;
-    setUserMessageCount(count);
-    
-    // Show survey after 15 user messages
-    if (count >= MAX_MESSAGES && view === "chat") {
+    if (userMessageCount >= MAX_MESSAGES && view === "chat") {
       setView("survey");
     }
-  }, [messages, view]);
+  }, [userMessageCount, view]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // On mount: check if logged in and preload characters
   useEffect(() => {
@@ -42,43 +31,35 @@ export default function App() {
       .then((u) => {
         setUser(u);
         setView("chat");
-        refreshCharacters();
+        loadAssignedCharacters(u);
       })
       .catch(() => {});
   }, []);
 
-  const refreshCharacters = async () => {
+  // Load assigned characters based on character_ids from /auth/me
+  const loadAssignedCharacters = async (userData) => {
     setLoadingCharacters(true);
     setError(null);
+    
     try {
-      const data = await getMyCharacters();
-      console.log("Fetched characters data:", data);
+      // Get character_ids from user data (from /auth/me response)
+      let characterIds = [];
       
-      // Ensure we have an array
-      const characterArray = Array.isArray(data) ? data : (data.characters || []);
-      
-      console.log("Character array:", characterArray);
-      
-      if (characterArray.length === 0) {
-        console.warn("No assigned characters found");
-        // Try to load from localStorage as fallback
-        const stored = localStorage.getItem("assignedCharacters");
-        if (stored) {
+      if (userData.character_ids && Array.isArray(userData.character_ids)) {
+        characterIds = userData.character_ids;
+      } else {
+        // Fallback: try localStorage
+        const storedIds = localStorage.getItem("assignedCharacterIds");
+        if (storedIds) {
           try {
-            const storedChars = JSON.parse(stored);
-            if (Array.isArray(storedChars) && storedChars.length > 0) {
-              console.log("Using stored characters:", storedChars);
-              setCharacters(storedChars);
-              if (!selected || !storedChars.find((c) => c.id === selected.id)) {
-                setSelected(storedChars[0]);
-              }
-              setLoadingCharacters(false);
-              return;
-            }
-          } catch (parseError) {
-            console.error("Failed to parse stored characters", parseError);
+            characterIds = JSON.parse(storedIds);
+          } catch (e) {
+            console.error("Failed to parse stored character IDs", e);
           }
         }
+      }
+      
+      if (characterIds.length === 0) {
         setError("No characters assigned. Please contact support.");
         setCharacters([]);
         setSelected(null);
@@ -86,18 +67,35 @@ export default function App() {
         return;
       }
 
-      // Store in localStorage for persistence
-      localStorage.setItem("assignedCharacters", JSON.stringify(characterArray));
+      console.log("Loading characters for IDs:", characterIds);
       
-      setCharacters(characterArray);
+      // Fetch character details for ONLY the assigned character IDs
+      const characterData = await getCharactersByIds(characterIds);
+      
+      console.log("Loaded characters:", characterData);
+      
+      if (characterData.length === 0) {
+        setError("Failed to load character details. Please try again.");
+        setCharacters([]);
+        setSelected(null);
+        setLoadingCharacters(false);
+        return;
+      }
+
+      // Store in localStorage for persistence
+      localStorage.setItem("assignedCharacters", JSON.stringify(characterData));
+      localStorage.setItem("assignedCharacterIds", JSON.stringify(characterIds));
+      
+      setCharacters(characterData);
       
       // Select first character if none selected
-      if (!selected || !characterArray.find((c) => c.id === selected.id)) {
-        setSelected(characterArray[0]);
+      if (!selected || !characterData.find((c) => c.id === selected.id)) {
+        setSelected(characterData[0]);
       }
     } catch (e) {
       console.error("Failed to load characters", e);
       setError(`Failed to load characters: ${e.message}`);
+      
       // Try to load from localStorage as fallback
       const stored = localStorage.getItem("assignedCharacters");
       if (stored) {
@@ -116,6 +114,7 @@ export default function App() {
           console.error("Failed to parse stored characters", parseError);
         }
       }
+      
       setCharacters([]);
       setSelected(null);
     } finally {
@@ -126,38 +125,22 @@ export default function App() {
   const handleSelectCharacter = (id) => {
     const ch = characters.find((c) => c.id === id) || null;
     setSelected(ch);
-    // Clear local display when switching characters (backend still keeps history)
-    setMessages([]);
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || !selected || userMessageCount >= MAX_MESSAGES) return;
-    
-    const userMsg = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMsg]);
-
-    const toSend = input.trim();
-    setInput("");
-    setLoading(true);
-
-    try {
-      const res = await sendChat(selected.id, toSend);
-      const botMsg = { role: "assistant", content: res.reply };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch (e) {
-      alert("Error sending message");
-      // Remove the user message if send failed
-      setMessages((prev) => prev.filter((m, i) => i !== prev.length - 1 || m.role !== "user"));
-    } finally {
-      setLoading(false);
-    }
+  const handleCharacterChange = (character) => {
+    setSelected(character);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+  const handleMessageSent = () => {
+    // Increment user message count when a message is sent
+    setUserMessageCount(prev => {
+      const newCount = prev + 1;
+      // Show survey if we've reached the limit
+      if (newCount >= MAX_MESSAGES) {
+        setView("survey");
+      }
+      return newCount;
+    });
   };
 
   // Show login form
@@ -169,7 +152,8 @@ export default function App() {
             const u = await me();
             setUser(u);
             setView("chat");
-            await refreshCharacters();
+            setUserMessageCount(0); // Reset message count on login
+            await loadAssignedCharacters(u);
           }}
         />
       </div>
@@ -198,7 +182,6 @@ export default function App() {
             logout();
             setUser(null);
             setView("start");
-            setMessages([]);
             setUserMessageCount(0);
             setCharacters([]);
             setSelected(null);
@@ -227,7 +210,12 @@ export default function App() {
         }}>
           {error}
           <button
-            onClick={refreshCharacters}
+            onClick={() => {
+              me().then(u => {
+                setUser(u);
+                loadAssignedCharacters(u);
+              });
+            }}
             className="button small"
             style={{ marginTop: "8px", display: "block" }}
           >
@@ -248,66 +236,17 @@ export default function App() {
       {/* Character Profile */}
       {selected && <CharacterProfile character={selected} />}
 
-      {/* Chat area */}
-      <div className="chat">
-        <div className="messages">
-          {messages.length === 0 && selected && (
-            <div className="meta" style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>
-              Start a conversation with {selected.name}...
-            </div>
-          )}
-          {messages.map((m, i) => (
-            <div
-              className={`bubble ${m.role === "user" ? "user" : "bot"}`}
-              key={i}
-            >
-              {m.content}
-            </div>
-          ))}
-          {loading && (
-            <div className="bubble bot">
-              <span style={{ opacity: 0.6 }}>Thinking...</span>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div className="composer">
-          <textarea
-            className="textarea"
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              // Auto-resize textarea
-              e.target.style.height = "auto";
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              selected 
-                ? userMessageCount >= MAX_MESSAGES
-                  ? "You have reached the message limit"
-                  : `Message ${selected.name}… (Press Enter to send, Shift+Enter for new line)`
-                : "Choose a character…"
-            }
-            disabled={loading || !selected || userMessageCount >= MAX_MESSAGES}
-            rows={1}
-            style={{
-              resize: "none",
-              minHeight: "44px",
-              maxHeight: "120px",
-              overflowY: "auto"
-            }}
-          />
-          <button
-            className="button"
-            onClick={handleSend}
-            disabled={loading || !input.trim() || !selected || userMessageCount >= MAX_MESSAGES}
-          >
-            Send
-          </button>
-        </div>
-      </div>
+      {/* ChatBox - Only shows assigned characters */}
+      {!loadingCharacters && (
+        <ChatBox
+          characters={characters}
+          selectedCharacter={selected}
+          onCharacterChange={handleCharacterChange}
+          userMessageCount={userMessageCount}
+          maxMessages={MAX_MESSAGES}
+          onMessageSent={handleMessageSent}
+        />
+      )}
     </div>
   );
 }
