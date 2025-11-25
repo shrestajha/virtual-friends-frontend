@@ -148,3 +148,30 @@ export const storeAssignedCharacters = (characters) => {
     localStorage.setItem("assignedCharacters", JSON.stringify(characters));
   }
 };
+
+// Password reset APIs
+export const forgotPassword = async (email) => {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Forgot password failed: ${text}`);
+  }
+  return res.json();
+};
+
+export const resetPassword = async (token, newPassword) => {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Reset password failed: ${text}`);
+  }
+  return res.json();
+};

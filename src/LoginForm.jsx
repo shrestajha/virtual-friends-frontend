@@ -1,14 +1,22 @@
 import React, { useState, useMemo } from "react";
 import { login, register } from "./api";
 
-export default function LoginForm({ onSuccess }) {
-  const [mode, setMode] = useState("register"); // login | register - default to register to show new design
+export default function LoginForm({ onSuccess, initialMode = "register", loginMessage = "" }) {
+  const [mode, setMode] = useState(initialMode); // login | register
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [assignedCharacter, setAssignedCharacter] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(loginMessage);
+
+  // Update success message when prop changes
+  React.useEffect(() => {
+    if (loginMessage) {
+      setSuccessMessage(loginMessage);
+    }
+  }, [loginMessage]);
 
   // Password validation rules
   const passwordValidation = useMemo(() => {
@@ -184,18 +192,52 @@ export default function LoginForm({ onSuccess }) {
             </button>
           </div>
 
+          <div style={{ textAlign: "right", marginBottom: "16px" }}>
+            <a
+              href="/forgot-password"
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.href = "/forgot-password";
+              }}
+              style={{ fontSize: "14px", color: "var(--accent)", textDecoration: "none", cursor: "pointer" }}
+            >
+              Forgot Password?
+            </a>
+          </div>
+
           <button type="submit" className="button" style={{ width: "100%" }}>
             Log In
           </button>
         </form>
 
+        {successMessage && (
+          <div style={{
+            padding: "12px",
+            background: "#d1fae5",
+            color: "#065f46",
+            borderRadius: "8px",
+            marginTop: "12px",
+            border: "1px solid #a7f3d0",
+            textAlign: "center"
+          }}>
+            {successMessage}
+          </div>
+        )}
+
         {error && <div className="hint" style={{ color: "red", marginTop: "12px" }}>{error}</div>}
 
         <div className="hint" style={{ marginTop: 12, textAlign: "center" }}>
           Don't have an account?{" "}
-          <span className="link" onClick={() => setMode("register")}>
+          <a
+            href="/signup"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = "/signup";
+            }}
+            className="link"
+          >
             Sign up
-          </span>
+          </a>
         </div>
       </div>
     );
@@ -384,9 +426,16 @@ export default function LoginForm({ onSuccess }) {
 
       <div className="hint" style={{ marginTop: 16, textAlign: "center" }}>
         Already registered?{" "}
-        <span className="link" onClick={() => setMode("login")}>
+        <a
+          href="/login"
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.href = "/login";
+          }}
+          className="link"
+        >
           Log in
-        </span>
+        </a>
       </div>
     </div>
   );

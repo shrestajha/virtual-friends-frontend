@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { me, logout } from "./api";
 import LoginForm from "./LoginForm";
+import ForgotPassword from "./ForgotPassword";
+import ResetPassword from "./ResetPassword";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
 import Survey from "./components/Survey";
@@ -16,6 +18,55 @@ export default function App() {
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [userMessageCount, setUserMessageCount] = useState(0);
   const [error, setError] = useState(null);
+  const [loginMessage, setLoginMessage] = useState("");
+
+  // Handle URL-based routing
+  useEffect(() => {
+    const updateViewFromPath = () => {
+      const path = window.location.pathname;
+      
+      // If user is logged in and tries to access auth pages, redirect to chat
+      if (user && (path === "/login" || path === "/signup" || path === "/forgot-password" || path === "/reset-password")) {
+        window.history.pushState({}, "", "/");
+        return;
+      }
+
+      // Handle routing for auth pages
+      if (path === "/forgot-password") {
+        setView("forgot-password");
+      } else if (path === "/reset-password") {
+        setView("reset-password");
+      } else if (path === "/login") {
+        setView("login");
+      } else if (path === "/signup") {
+        setView("signup");
+      } else if (!user) {
+        // Default to login if not logged in
+        setView("start");
+      }
+    };
+
+    updateViewFromPath();
+
+    // Listen for popstate events (back/forward buttons)
+    const handlePopState = () => {
+      updateViewFromPath();
+    };
+
+    // Listen for navigation events
+    const handleLocationChange = () => {
+      updateViewFromPath();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    // Check pathname periodically (for programmatic navigation)
+    const interval = setInterval(handleLocationChange, 100);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      clearInterval(interval);
+    };
+  }, [user]);
 
   // Check message count and show survey
   useEffect(() => {
@@ -25,13 +76,29 @@ export default function App() {
   }, [userMessageCount, view]);
 
 
-  // On mount: check if logged in and preload characters
+  // On mount: check if logged in and preload characters, and check initial route
   useEffect(() => {
+    // Check initial route first
+    const path = window.location.pathname;
+    if (path === "/forgot-password") {
+      setView("forgot-password");
+    } else if (path === "/reset-password") {
+      setView("reset-password");
+    } else if (path === "/login") {
+      setView("login");
+    } else if (path === "/signup") {
+      setView("signup");
+    }
+
+    // Then check if user is logged in
     me()
       .then((u) => {
         setUser(u);
-        setView("chat");
-        loadAssignedCharacters(u);
+        // Only set to chat if not on an auth page
+        if (!["/forgot-password", "/reset-password", "/login", "/signup"].includes(window.location.pathname)) {
+          setView("chat");
+          loadAssignedCharacters(u);
+        }
       })
       .catch(() => {});
   }, []);
@@ -116,16 +183,99 @@ export default function App() {
     });
   };
 
-  // Show login form
-  if (view === "start") {
+  // Get token from URL for reset password
+  const getTokenFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("token");
+  };
+
+  // Handle navigation
+  const navigateTo = (path) => {
+    window.history.pushState({}, "", path);
+    const pathname = window.location.pathname;
+    if (pathname === "/forgot-password") {
+      setView("forgot-password");
+    } else if (pathname === "/reset-password") {
+      setView("reset-password");
+    } else if (pathname === "/login") {
+      setView("login");
+    } else if (pathname === "/signup") {
+      setView("signup");
+    } else {
+      setView("start");
+    }
+  };
+
+  // Show forgot password page
+  if (view === "forgot-password") {
+    return (
+      <div className="container center">
+        <ForgotPassword
+          onBack={() => {
+            navigateTo("/login");
+            setLoginMessage("");
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Show reset password page
+  if (view === "reset-password") {
+    const token = getTokenFromURL();
+    if (!token) {
+      return (
+        <div className="container center">
+          <div className="panel" style={{ padding: 40, maxWidth: 480, margin: "40px auto", textAlign: "center" }}>
+            <h2 style={{ marginBottom: 16, fontSize: "24px", fontWeight: 600 }}>Invalid Reset Link</h2>
+            <p style={{ marginBottom: 24, color: "var(--muted)" }}>
+              The reset link is invalid or has expired.
+            </p>
+            <button
+              className="button"
+              onClick={() => navigateTo("/login")}
+              style={{ width: "100%" }}
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="container center">
+        <ResetPassword token={token} />
+      </div>
+    );
+  }
+
+  // Check for message in URL params (for password reset success)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get("message");
+    if (message) {
+      setLoginMessage(decodeURIComponent(message));
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Show login/signup form
+  if (view === "start" || view === "login" || view === "signup") {
+    const initialMode = view === "signup" ? "register" : view === "login" ? "login" : "register";
     return (
       <div className="container center">
         <LoginForm
+          initialMode={initialMode}
+          loginMessage={loginMessage}
           onSuccess={async () => {
             const u = await me();
             setUser(u);
             setView("chat");
             setUserMessageCount(0); // Reset message count on login
+            setLoginMessage("");
+            window.history.pushState({}, "", "/");
             loadAssignedCharacters(u);
           }}
         />
