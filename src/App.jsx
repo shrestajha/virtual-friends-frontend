@@ -20,7 +20,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [loginMessage, setLoginMessage] = useState("");
 
-  // Handle URL-based routing
+  // Handle URL-based routing when pathname changes
   useEffect(() => {
     const updateViewFromPath = () => {
       const path = window.location.pathname;
@@ -31,18 +31,20 @@ export default function App() {
         return;
       }
 
-      // Handle routing for auth pages
-      if (path === "/forgot-password") {
-        setView("forgot-password");
-      } else if (path === "/reset-password") {
-        setView("reset-password");
-      } else if (path === "/login") {
-        setView("login");
-      } else if (path === "/signup") {
-        setView("signup");
-      } else if (!user) {
-        // Default to login if not logged in
-        setView("start");
+      // Handle routing for auth pages (only if not logged in)
+      if (!user) {
+        if (path === "/forgot-password") {
+          setView("forgot-password");
+        } else if (path === "/reset-password") {
+          setView("reset-password");
+        } else if (path === "/login") {
+          setView("login");
+        } else if (path === "/signup") {
+          setView("signup");
+        } else {
+          // Default to start (which shows login/signup)
+          setView("start");
+        }
       }
     };
 
@@ -53,18 +55,10 @@ export default function App() {
       updateViewFromPath();
     };
 
-    // Listen for navigation events
-    const handleLocationChange = () => {
-      updateViewFromPath();
-    };
-
     window.addEventListener("popstate", handlePopState);
-    // Check pathname periodically (for programmatic navigation)
-    const interval = setInterval(handleLocationChange, 100);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
-      clearInterval(interval);
     };
   }, [user]);
 
@@ -80,27 +74,32 @@ export default function App() {
   useEffect(() => {
     // Check initial route first
     const path = window.location.pathname;
-    if (path === "/forgot-password") {
-      setView("forgot-password");
-    } else if (path === "/reset-password") {
-      setView("reset-password");
-    } else if (path === "/login") {
-      setView("login");
-    } else if (path === "/signup") {
-      setView("signup");
-    }
-
-    // Then check if user is logged in
-    me()
-      .then((u) => {
-        setUser(u);
-        // Only set to chat if not on an auth page
-        if (!["/forgot-password", "/reset-password", "/login", "/signup"].includes(window.location.pathname)) {
+    const authPages = ["/forgot-password", "/reset-password", "/login", "/signup"];
+    
+    if (authPages.includes(path)) {
+      // Set view based on path
+      if (path === "/forgot-password") {
+        setView("forgot-password");
+      } else if (path === "/reset-password") {
+        setView("reset-password");
+      } else if (path === "/login") {
+        setView("login");
+      } else if (path === "/signup") {
+        setView("signup");
+      }
+    } else {
+      // For non-auth pages, check if logged in
+      me()
+        .then((u) => {
+          setUser(u);
           setView("chat");
           loadAssignedCharacters(u);
-        }
-      })
-      .catch(() => {});
+        })
+        .catch(() => {
+          // Not logged in, default to start (which shows login/signup)
+          setView("start");
+        });
+    }
   }, []);
 
   // Load assigned characters directly from /auth/me response
