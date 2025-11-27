@@ -7,6 +7,9 @@ import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
 import Survey from "./components/Survey";
 import ChatBox from "./components/ChatBox";
+import ChatPage from "./pages/ChatPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminConversationView from "./pages/AdminConversationView";
 
 const MAX_MESSAGES = 15;
 
@@ -27,8 +30,36 @@ export default function App() {
       
       // If user is logged in and tries to access auth pages, redirect to chat
       if (user && (path === "/login" || path === "/signup" || path === "/forgot-password" || path === "/reset-password")) {
-        window.history.pushState({}, "", "/");
+        window.history.pushState({}, "", "/chat");
+        setView("chat");
         return;
+      }
+
+      // Handle admin routes
+      if (user) {
+        if (path.startsWith("/admin/conversations/")) {
+          const match = path.match(/^\/admin\/conversations\/(\d+)$/);
+          if (match) {
+            if (!user.is_admin) {
+              window.history.pushState({}, "", "/chat");
+              setView("chat");
+              return;
+            }
+            setView("admin-conversation");
+            return;
+          }
+        } else if (path === "/admin") {
+          if (!user.is_admin) {
+            window.history.pushState({}, "", "/chat");
+            setView("chat");
+            return;
+          }
+          setView("admin");
+          return;
+        } else if (path === "/chat" || path === "/") {
+          setView("chat");
+          return;
+        }
       }
 
       // Handle routing for auth pages (only if not logged in)
@@ -43,6 +74,10 @@ export default function App() {
           setView("signup");
         } else if (path === "/") {
           // Default to start (which shows login/signup)
+          setView("start");
+        } else {
+          // Redirect unknown routes to login
+          window.history.pushState({}, "", "/");
           setView("start");
         }
       }
@@ -103,7 +138,25 @@ export default function App() {
     me()
       .then((u) => {
         setUser(u);
-        setView("chat");
+        // Store user with is_admin flag
+        localStorage.setItem("user", JSON.stringify(u));
+        // Determine view based on path
+        if (path.startsWith("/admin/conversations/")) {
+          const match = path.match(/^\/admin\/conversations\/(\d+)$/);
+          if (match && u.is_admin) {
+            setView("admin-conversation");
+          } else {
+            setView("chat");
+            window.history.pushState({}, "", "/chat");
+          }
+        } else if (path === "/admin" && u.is_admin) {
+          setView("admin");
+        } else {
+          setView("chat");
+          if (path !== "/chat") {
+            window.history.pushState({}, "", "/chat");
+          }
+        }
         loadAssignedCharacters(u);
       })
       .catch(() => {
@@ -293,10 +346,12 @@ export default function App() {
           onSuccess={async () => {
             const u = await me();
             setUser(u);
+            // Store user with is_admin flag
+            localStorage.setItem("user", JSON.stringify(u));
             setView("chat");
             setUserMessageCount(0); // Reset message count on login
             setLoginMessage("");
-            window.history.pushState({}, "", "/");
+            window.history.pushState({}, "", "/chat");
             loadAssignedCharacters(u);
           }}
         />
@@ -309,7 +364,104 @@ export default function App() {
     return <Survey />;
   }
 
-  // Show chat interface
+  // Show admin dashboard
+  if (view === "admin" && user?.is_admin) {
+    return (
+      <div className="container">
+        <div className="header">
+          <div className="brand" style={{ marginRight: "auto" }}>
+            Admin Dashboard
+          </div>
+          <button
+            className="button small"
+            onClick={() => {
+              window.history.pushState({}, "", "/chat");
+              setView("chat");
+            }}
+            style={{ marginRight: "8px" }}
+          >
+            Back to Chat
+          </button>
+          <button
+            className="button small"
+            onClick={() => {
+              logout();
+              setUser(null);
+              setView("start");
+              setUserMessageCount(0);
+              setCharacters([]);
+              setSelected(null);
+              localStorage.removeItem("user");
+            }}
+          >
+            Logout
+          </button>
+        </div>
+        <AdminDashboard />
+      </div>
+    );
+  }
+
+  // Show admin conversation view
+  if (view === "admin-conversation" && user?.is_admin) {
+    const match = window.location.pathname.match(/^\/admin\/conversations\/(\d+)$/);
+    const conversationId = match ? parseInt(match[1]) : null;
+    
+    if (!conversationId) {
+      window.history.pushState({}, "", "/admin");
+      setView("admin");
+      return null;
+    }
+
+    return (
+      <div className="container" style={{ height: "100vh", overflow: "hidden" }}>
+        <AdminConversationView conversationId={conversationId} />
+      </div>
+    );
+  }
+
+  // Show chat page (new /chat route)
+  if (view === "chat" && user) {
+    return (
+      <div className="container" style={{ height: "100vh", overflow: "hidden" }}>
+        {/* Header with logout and admin link */}
+        <div className="header" style={{ position: "relative", zIndex: 1000 }}>
+          <div className="brand" style={{ marginRight: "auto" }}>
+            Welcome, {user?.email || "User"}
+          </div>
+          {user?.is_admin && (
+            <button
+              className="button small"
+              onClick={() => {
+                window.history.pushState({}, "", "/admin");
+                setView("admin");
+              }}
+              style={{ marginRight: "8px" }}
+            >
+              Admin Dashboard
+            </button>
+          )}
+          <button
+            className="button small"
+            onClick={() => {
+              logout();
+              setUser(null);
+              setView("start");
+              setUserMessageCount(0);
+              setCharacters([]);
+              setSelected(null);
+              localStorage.removeItem("user");
+            }}
+          >
+            Logout
+          </button>
+        </div>
+        <ChatPage user={user} />
+      </div>
+    );
+  }
+
+  // Legacy chat interface (fallback)
   return (
     <div className="container">
       {/* Header with logout */}
@@ -317,6 +469,18 @@ export default function App() {
         <div className="brand" style={{ marginRight: "auto" }}>
           Welcome, {user?.email || "User"}
         </div>
+        {user?.is_admin && (
+          <button
+            className="button small"
+            onClick={() => {
+              window.history.pushState({}, "", "/admin");
+              setView("admin");
+            }}
+            style={{ marginRight: "8px" }}
+          >
+            Admin Dashboard
+          </button>
+        )}
         <div style={{ fontSize: "14px", color: "var(--muted)", marginRight: "12px" }}>
           Messages: {userMessageCount}/{MAX_MESSAGES}
         </div>
@@ -329,6 +493,7 @@ export default function App() {
             setUserMessageCount(0);
             setCharacters([]);
             setSelected(null);
+            localStorage.removeItem("user");
           }}
         >
           Logout

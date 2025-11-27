@@ -167,7 +167,7 @@ export const resetPassword = async (token, newPassword) => {
   const res = await fetch(`${API_BASE}/auth/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, newPassword }),
+    body: JSON.stringify({ token, new_password: newPassword }),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -175,3 +175,15 @@ export const resetPassword = async (token, newPassword) => {
   }
   return res.json();
 };
+
+// Conversation APIs
+export const getMyConversation = () => http("GET", "/conversations/me");
+export const getConversationMessages = (conversationId) => 
+  http("GET", `/conversations/${conversationId}/messages`);
+export const sendMessage = (conversationId, message) => 
+  http("POST", "/messages/send", { conversation_id: conversationId, user_message: message });
+
+// Admin APIs
+export const getAdminConversations = () => http("GET", "/admin/conversations");
+export const getAdminConversationMessages = (conversationId) => 
+  http("GET", `/admin/conversations/${conversationId}/messages`);
