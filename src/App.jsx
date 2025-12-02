@@ -248,6 +248,7 @@ export default function App() {
         ...prev,
         [characterId]: count !== null ? count : ((prev[characterId] || 0) + 1)
       };
+      console.log(`Message counts per character:`, newCounts);
       // Check if this character has reached the limit
       if (newCounts[characterId] >= MAX_MESSAGES) {
         // Show survey when any character reaches the limit

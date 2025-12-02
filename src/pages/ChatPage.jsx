@@ -16,25 +16,21 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
     loadConversation();
   }, []);
 
-  // Load messages when conversation is loaded
-  useEffect(() => {
-    if (conversation?.id) {
-      loadMessages(conversation.id);
-    }
-  }, [conversation?.id]);
+  // Note: Messages are now loaded in loadConversation to ensure proper initialization
 
   // Initialize message count when messages are loaded for a character
   useEffect(() => {
     if (conversation?.character?.id && messages.length > 0 && onMessageSent) {
       const userMessageCount = messages.filter(m => m.role === 'user').length;
       const characterId = conversation.character.id;
-      // Initialize count if not already set or if loaded count is higher
-      if (!messageCountsPerCharacter[characterId] || messageCountsPerCharacter[characterId] < userMessageCount) {
-        // Set the count directly (not increment)
+      // Always sync the count with the actual number of user messages
+      // This ensures the count is accurate when switching characters or reloading
+      if (messageCountsPerCharacter[characterId] !== userMessageCount) {
+        // Set the count directly (not increment) to match actual message count
         onMessageSent(characterId, userMessageCount);
       }
     }
-  }, [conversation?.character?.id]); // Only run when character changes
+  }, [conversation?.character?.id, messages.length]); // Run when character changes or messages are loaded
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -46,26 +42,35 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
       setLoadingMessages(true);
       const conv = await getMyConversation();
       setConversation(conv);
+      
+      // Load messages immediately after conversation is loaded
+      if (conv?.id) {
+        await loadMessages(conv.id, conv);
+      }
     } catch (error) {
       console.error('Failed to load conversation:', error);
       setLoadingMessages(false);
     }
   };
 
-  const loadMessages = async (conversationId) => {
+  const loadMessages = async (conversationId, convData = null) => {
     try {
       setLoadingMessages(true);
       const msgs = await getConversationMessages(conversationId);
       const loadedMessages = Array.isArray(msgs) ? msgs : (msgs.messages || []);
       setMessages(loadedMessages);
       
-      // Count user messages for this character and update parent
-      if (conversation?.character?.id) {
+      // Use convData if provided, otherwise use conversation state
+      const currentConv = convData || conversation;
+      
+      // Count user messages for this character and initialize count in parent
+      if (currentConv?.character?.id && onMessageSent) {
         const userMessageCount = loadedMessages.filter(m => m.role === 'user').length;
-        // Only update if the count is different (to avoid unnecessary updates)
-        if (messageCountsPerCharacter[conversation.character.id] !== userMessageCount) {
-          // This will be handled by the parent component
-        }
+        const characterId = currentConv.character.id;
+        // Always sync the count with actual messages loaded
+        // This ensures accurate per-character tracking
+        console.log(`Initializing message count for character ${characterId}: ${userMessageCount} messages`);
+        onMessageSent(characterId, userMessageCount);
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -106,6 +111,7 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
       
       // Notify parent that a message was sent for this character
       if (characterId && onMessageSent) {
+        console.log(`Message sent for character ${characterId}, incrementing count`);
         onMessageSent(characterId);
       }
       
