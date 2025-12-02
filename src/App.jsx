@@ -147,6 +147,19 @@ export default function App() {
         setUser(u);
         // Store user with is_admin flag
         localStorage.setItem("user", JSON.stringify(u));
+        
+        // Initialize message counts from /auth/me response
+        const counts = {};
+        if (u.characters && Array.isArray(u.characters)) {
+          u.characters.forEach(char => {
+            if (char.id && typeof char.message_count === 'number') {
+              counts[char.id] = char.message_count;
+            }
+          });
+        }
+        setMessageCountsPerCharacter(counts);
+        console.log('Initialized message counts from /auth/me:', counts);
+        
         // Determine view based on path
         if (path.startsWith("/admin/conversations/")) {
           const match = path.match(/^\/admin\/conversations\/(\d+)$/);
@@ -241,8 +254,8 @@ export default function App() {
   };
 
   const handleMessageSent = (characterId, count = null) => {
-    // If count is provided, set it directly (for initialization)
-    // Otherwise, increment the count
+    // If count is provided, set it directly (for initialization from /auth/me)
+    // Otherwise, increment the count (when a new message is sent)
     setMessageCountsPerCharacter(prev => {
       const newCounts = {
         ...prev,
@@ -258,6 +271,25 @@ export default function App() {
       }
       return newCounts;
     });
+  };
+
+  // Refresh message counts from backend
+  const refreshMessageCounts = async () => {
+    try {
+      const u = await me();
+      const counts = {};
+      if (u.characters && Array.isArray(u.characters)) {
+        u.characters.forEach(char => {
+          if (char.id && typeof char.message_count === 'number') {
+            counts[char.id] = char.message_count;
+          }
+        });
+      }
+      setMessageCountsPerCharacter(counts);
+      console.log('Refreshed message counts from /auth/me:', counts);
+    } catch (error) {
+      console.error('Failed to refresh message counts:', error);
+    }
   };
 
   // Get token from URL for reset password
@@ -364,7 +396,19 @@ export default function App() {
             // Store user with is_admin flag
             localStorage.setItem("user", JSON.stringify(u));
             setView("chat");
-            setMessageCountsPerCharacter({}); // Reset message counts on login
+            
+            // Initialize message counts from /auth/me response
+            const counts = {};
+            if (u.characters && Array.isArray(u.characters)) {
+              u.characters.forEach(char => {
+                if (char.id && typeof char.message_count === 'number') {
+                  counts[char.id] = char.message_count;
+                }
+              });
+            }
+            setMessageCountsPerCharacter(counts);
+            console.log('Initialized message counts from /auth/me:', counts);
+            
             setLoginMessage("");
             window.history.pushState({}, "", "/chat");
             loadAssignedCharacters(u);
@@ -403,7 +447,7 @@ export default function App() {
               logout();
               setUser(null);
               setView("start");
-              setUserMessageCount(0);
+              setMessageCountsPerCharacter({});
               setCharacters([]);
               setSelected(null);
               localStorage.removeItem("user");
@@ -462,7 +506,7 @@ export default function App() {
               logout();
               setUser(null);
               setView("start");
-              setUserMessageCount(0);
+              setMessageCountsPerCharacter({});
               setCharacters([]);
               setSelected(null);
               localStorage.removeItem("user");
@@ -476,6 +520,7 @@ export default function App() {
           messageCountsPerCharacter={messageCountsPerCharacter}
           onMessageSent={handleMessageSent}
           maxMessages={MAX_MESSAGES}
+          onRefreshCounts={refreshMessageCounts}
         />
       </div>
     );

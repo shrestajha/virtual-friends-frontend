@@ -3,7 +3,7 @@ import { getMyConversation, getConversationMessages, sendMessage } from '../api'
 import { Box, Paper, TextField, Button, Typography, CircularProgress } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 
-export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessageSent, maxMessages = 15 }) {
+export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessageSent, maxMessages = 15, onRefreshCounts }) {
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -14,32 +14,18 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
   // Load conversation on mount
   useEffect(() => {
     loadConversation();
+    // Refresh message counts when component mounts to get latest from backend
+    if (onRefreshCounts) {
+      onRefreshCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Note: Messages are now loaded in loadConversation to ensure proper initialization
 
-  // Initialize message count when messages are loaded for a character
-  // Note: Messages may contain messages from all characters, so we filter by character_id
-  useEffect(() => {
-    if (conversation?.character?.id && messages.length > 0 && onMessageSent) {
-      const characterId = conversation.character.id;
-      // Filter messages by character_id if available, otherwise assume all messages are for this character
-      const characterMessages = messages.filter(m => 
-        !m.character_id || m.character_id === characterId ||
-        !m.character || m.character.id === characterId ||
-        (!m.character_id && !m.character) // If no character_id field, assume it's for current character
-      );
-      const userMessageCount = characterMessages.filter(m => m.role === 'user').length;
-      
-      // Always sync the count with the actual number of user messages for this character
-      // This ensures the count is accurate when switching characters or reloading
-      if (messageCountsPerCharacter[characterId] !== userMessageCount) {
-        console.log(`Syncing message count for character ${characterId}: ${userMessageCount} user messages (from ${messages.length} total messages)`);
-        // Set the count directly (not increment) to match actual message count
-        onMessageSent(characterId, userMessageCount);
-      }
-    }
-  }, [conversation?.character?.id, messages.length]); // Run when character changes or messages are loaded
+  // Note: Message counts are now initialized from /auth/me response (message_count per character)
+  // We don't need to count messages here - the backend provides the count
+  // This effect is kept for potential future use but doesn't update counts
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -78,20 +64,15 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
         ? loadedMessages.filter(m => 
             m.character_id === characterId || 
             m.character?.id === characterId ||
-            !m.character_id && !m.character // If no character_id, assume it's for current character
+            (!m.character_id && !m.character) // If no character_id, assume it's for current character
           )
         : loadedMessages;
       
       setMessages(characterMessages);
       
-      // Count user messages for this character only
-      if (characterId && onMessageSent) {
-        const userMessageCount = characterMessages.filter(m => m.role === 'user').length;
-        // Always sync the count with actual messages loaded
-        // This ensures accurate per-character tracking
-        console.log(`Initializing message count for character ${characterId}: ${userMessageCount} messages (filtered from ${loadedMessages.length} total messages)`);
-        onMessageSent(characterId, userMessageCount);
-      }
+      // Note: We no longer initialize count from messages here
+      // The count comes from /auth/me response (message_count per character)
+      // We only update when a new message is sent
     } catch (error) {
       console.error('Failed to load messages:', error);
     } finally {
@@ -130,9 +111,10 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
       setMessages(prev => [...prev, botMsg]);
       
       // Notify parent that a message was sent for this character
+      // The count will be incremented in the parent component
       if (characterId && onMessageSent) {
         console.log(`Message sent for character ${characterId}, incrementing count`);
-        onMessageSent(characterId);
+        onMessageSent(characterId); // This will increment the count
       }
       
       // Optionally reload messages to get the latest from server (or use the response)

@@ -138,6 +138,16 @@ export const me = async () => {
   // Also handle if characters array is returned (for backward compatibility)
   if (data.characters && Array.isArray(data.characters)) {
     localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
+    // Extract message_count from each character and store it
+    const messageCounts = {};
+    data.characters.forEach(char => {
+      if (char.id && typeof char.message_count === 'number') {
+        messageCounts[char.id] = char.message_count;
+      }
+    });
+    if (Object.keys(messageCounts).length > 0) {
+      localStorage.setItem("messageCountsPerCharacter", JSON.stringify(messageCounts));
+    }
   }
   return data;
 };
