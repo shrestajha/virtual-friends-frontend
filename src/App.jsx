@@ -19,7 +19,8 @@ export default function App() {
   const [characters, setCharacters] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loadingCharacters, setLoadingCharacters] = useState(false);
-  const [userMessageCount, setUserMessageCount] = useState(0);
+  // Track message counts per character: { characterId: count }
+  const [messageCountsPerCharacter, setMessageCountsPerCharacter] = useState({});
   const [error, setError] = useState(null);
   const [loginMessage, setLoginMessage] = useState("");
 
@@ -105,12 +106,18 @@ export default function App() {
     };
   }, [user]);
 
-  // Check message count and show survey
+  // Check message count per character and show survey when any character reaches limit
   useEffect(() => {
-    if (userMessageCount >= MAX_MESSAGES && view === "chat") {
-      setView("survey");
+    if (view === "chat" && user) {
+      // Check if any character has reached the message limit
+      const hasReachedLimit = Object.values(messageCountsPerCharacter).some(
+        count => count >= MAX_MESSAGES
+      );
+      if (hasReachedLimit) {
+        setView("survey");
+      }
     }
-  }, [userMessageCount, view]);
+  }, [messageCountsPerCharacter, view, user]);
 
 
   // On mount: check if logged in and preload characters, and check initial route
@@ -233,15 +240,22 @@ export default function App() {
     setSelected(character);
   };
 
-  const handleMessageSent = () => {
-    // Increment user message count when a message is sent
-    setUserMessageCount(prev => {
-      const newCount = prev + 1;
-      // Show survey if we've reached the limit
-      if (newCount >= MAX_MESSAGES) {
-        setView("survey");
+  const handleMessageSent = (characterId, count = null) => {
+    // If count is provided, set it directly (for initialization)
+    // Otherwise, increment the count
+    setMessageCountsPerCharacter(prev => {
+      const newCounts = {
+        ...prev,
+        [characterId]: count !== null ? count : ((prev[characterId] || 0) + 1)
+      };
+      // Check if this character has reached the limit
+      if (newCounts[characterId] >= MAX_MESSAGES) {
+        // Show survey when any character reaches the limit
+        if (view === "chat") {
+          setView("survey");
+        }
       }
-      return newCount;
+      return newCounts;
     });
   };
 
@@ -349,7 +363,7 @@ export default function App() {
             // Store user with is_admin flag
             localStorage.setItem("user", JSON.stringify(u));
             setView("chat");
-            setUserMessageCount(0); // Reset message count on login
+            setMessageCountsPerCharacter({}); // Reset message counts on login
             setLoginMessage("");
             window.history.pushState({}, "", "/chat");
             loadAssignedCharacters(u);
@@ -456,7 +470,12 @@ export default function App() {
             Logout
           </button>
         </div>
-        <ChatPage user={user} />
+        <ChatPage 
+          user={user} 
+          messageCountsPerCharacter={messageCountsPerCharacter}
+          onMessageSent={handleMessageSent}
+          maxMessages={MAX_MESSAGES}
+        />
       </div>
     );
   }
@@ -481,16 +500,13 @@ export default function App() {
             Admin Dashboard
           </button>
         )}
-        <div style={{ fontSize: "14px", color: "var(--muted)", marginRight: "12px" }}>
-          Messages: {userMessageCount}/{MAX_MESSAGES}
-        </div>
         <button
           className="button small"
           onClick={() => {
             logout();
             setUser(null);
             setView("start");
-            setUserMessageCount(0);
+            setMessageCountsPerCharacter({});
             setCharacters([]);
             setSelected(null);
             localStorage.removeItem("user");
@@ -549,9 +565,9 @@ export default function App() {
       {!loadingCharacters && (
         <ChatBox
           selectedCharacter={selected}
-          userMessageCount={userMessageCount}
+          userMessageCount={messageCountsPerCharacter[selected?.id] || 0}
           maxMessages={MAX_MESSAGES}
-          onMessageSent={handleMessageSent}
+          onMessageSent={() => handleMessageSent(selected?.id)}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { getMyConversation, getConversationMessages, sendMessage } from '../api'
 import { Box, Paper, TextField, Button, Typography, CircularProgress } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 
-export default function ChatPage({ user }) {
+export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessageSent, maxMessages = 15 }) {
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -22,6 +22,19 @@ export default function ChatPage({ user }) {
       loadMessages(conversation.id);
     }
   }, [conversation?.id]);
+
+  // Initialize message count when messages are loaded for a character
+  useEffect(() => {
+    if (conversation?.character?.id && messages.length > 0 && onMessageSent) {
+      const userMessageCount = messages.filter(m => m.role === 'user').length;
+      const characterId = conversation.character.id;
+      // Initialize count if not already set or if loaded count is higher
+      if (!messageCountsPerCharacter[characterId] || messageCountsPerCharacter[characterId] < userMessageCount) {
+        // Set the count directly (not increment)
+        onMessageSent(characterId, userMessageCount);
+      }
+    }
+  }, [conversation?.character?.id]); // Only run when character changes
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -43,7 +56,17 @@ export default function ChatPage({ user }) {
     try {
       setLoadingMessages(true);
       const msgs = await getConversationMessages(conversationId);
-      setMessages(Array.isArray(msgs) ? msgs : (msgs.messages || []));
+      const loadedMessages = Array.isArray(msgs) ? msgs : (msgs.messages || []);
+      setMessages(loadedMessages);
+      
+      // Count user messages for this character and update parent
+      if (conversation?.character?.id) {
+        const userMessageCount = loadedMessages.filter(m => m.role === 'user').length;
+        // Only update if the count is different (to avoid unnecessary updates)
+        if (messageCountsPerCharacter[conversation.character.id] !== userMessageCount) {
+          // This will be handled by the parent component
+        }
+      }
     } catch (error) {
       console.error('Failed to load messages:', error);
     } finally {
@@ -54,6 +77,14 @@ export default function ChatPage({ user }) {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || !conversation || loading) return;
+
+    const characterId = conversation.character?.id;
+    const currentMessageCount = messageCountsPerCharacter[characterId] || 0;
+    
+    // Check if this character has reached the message limit
+    if (characterId && currentMessageCount >= maxMessages) {
+      return;
+    }
 
     setInput('');
     const userMsg = { 
@@ -72,6 +103,11 @@ export default function ChatPage({ user }) {
         created_at: new Date().toISOString()
       };
       setMessages(prev => [...prev, botMsg]);
+      
+      // Notify parent that a message was sent for this character
+      if (characterId && onMessageSent) {
+        onMessageSent(characterId);
+      }
       
       // Optionally reload messages to get the latest from server (or use the response)
       // await loadMessages(conversation.id);
@@ -110,14 +146,24 @@ export default function ChatPage({ user }) {
   }
 
   const character = conversation.character || {};
+  const characterId = character.id;
+  const currentMessageCount = characterId ? (messageCountsPerCharacter[characterId] || 0) : 0;
+  const hasReachedLimit = characterId && currentMessageCount >= maxMessages;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <Paper elevation={2} sx={{ p: 2, borderRadius: 0 }}>
-        <Typography variant="h6">
-          Chatting with {character.name || 'Your Character'}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            Chatting with {character.name || 'Your Character'}
+          </Typography>
+          {characterId && (
+            <Typography variant="body2" color="text.secondary">
+              Messages: {currentMessageCount}/{maxMessages}
+            </Typography>
+          )}
+        </Box>
       </Paper>
 
       {/* Messages Container */}
@@ -201,18 +247,22 @@ export default function ChatPage({ user }) {
             fullWidth
             multiline
             maxRows={4}
-            placeholder="Type your message... (Press Enter to send)"
+            placeholder={
+              hasReachedLimit 
+                ? "You have reached the message limit for this character" 
+                : "Type your message... (Press Enter to send)"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={loading}
+            disabled={loading || hasReachedLimit}
             variant="outlined"
             size="small"
           />
           <Button
             variant="contained"
             onClick={handleSend}
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || hasReachedLimit}
             startIcon={<SendIcon />}
           >
             Send
