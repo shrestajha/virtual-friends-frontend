@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { me, logout } from "./api";
+import { me, logout, getSurveyStatus } from "./api";
 import LoginForm from "./LoginForm";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
@@ -106,18 +106,8 @@ export default function App() {
     };
   }, [user]);
 
-  // Check message count per character and show survey when any character reaches limit
-  useEffect(() => {
-    if (view === "chat" && user) {
-      // Check if any character has reached the message limit
-      const hasReachedLimit = Object.values(messageCountsPerCharacter).some(
-        count => count >= MAX_MESSAGES
-      );
-      if (hasReachedLimit) {
-        setView("survey");
-      }
-    }
-  }, [messageCountsPerCharacter, view, user]);
+  // Survey status is now checked in ChatPage component
+  // This effect is no longer needed
 
 
   // On mount: check if logged in and preload characters, and check initial route
@@ -143,7 +133,7 @@ export default function App() {
     
     // For non-auth pages, check if logged in
     me()
-      .then((u) => {
+      .then(async (u) => {
         setUser(u);
         // Store user with is_admin flag
         localStorage.setItem("user", JSON.stringify(u));
@@ -160,6 +150,18 @@ export default function App() {
         setMessageCountsPerCharacter(counts);
         console.log('Initialized message counts from /auth/me:', counts);
         
+        // Check survey status on page load
+        try {
+          const surveyStatus = await getSurveyStatus();
+          if (surveyStatus.showSurvey === true) {
+            setView("survey");
+            window.history.pushState({}, "", "/survey");
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to check survey status:', error);
+        }
+        
         // Determine view based on path
         if (path.startsWith("/admin/conversations/")) {
           const match = path.match(/^\/admin\/conversations\/(\d+)$/);
@@ -172,7 +174,7 @@ export default function App() {
         } else if (path === "/admin" && u.is_admin) {
           setView("admin");
         } else {
-          setView("chat");
+        setView("chat");
           if (path !== "/chat") {
             window.history.pushState({}, "", "/chat");
           }
@@ -395,7 +397,6 @@ export default function App() {
             setUser(u);
             // Store user with is_admin flag
             localStorage.setItem("user", JSON.stringify(u));
-            setView("chat");
             
             // Initialize message counts from /auth/me response
             const counts = {};
@@ -409,6 +410,20 @@ export default function App() {
             setMessageCountsPerCharacter(counts);
             console.log('Initialized message counts from /auth/me:', counts);
             
+            // Check survey status after login
+            try {
+              const surveyStatus = await getSurveyStatus();
+              if (surveyStatus.showSurvey === true) {
+                setView("survey");
+                window.history.pushState({}, "", "/survey");
+                setLoginMessage("");
+                return;
+              }
+            } catch (error) {
+              console.error('Failed to check survey status:', error);
+            }
+            
+            setView("chat");
             setLoginMessage("");
             window.history.pushState({}, "", "/chat");
             loadAssignedCharacters(u);
@@ -517,10 +532,10 @@ export default function App() {
         </div>
         <ChatPage 
           user={user} 
-          messageCountsPerCharacter={messageCountsPerCharacter}
-          onMessageSent={handleMessageSent}
-          maxMessages={MAX_MESSAGES}
-          onRefreshCounts={refreshMessageCounts}
+          onNavigateToSurvey={() => {
+            setView("survey");
+            window.history.pushState({}, "", "/survey");
+          }}
         />
       </div>
     );
