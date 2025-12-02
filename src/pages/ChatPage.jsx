@@ -19,13 +19,22 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
   // Note: Messages are now loaded in loadConversation to ensure proper initialization
 
   // Initialize message count when messages are loaded for a character
+  // Note: Messages may contain messages from all characters, so we filter by character_id
   useEffect(() => {
     if (conversation?.character?.id && messages.length > 0 && onMessageSent) {
-      const userMessageCount = messages.filter(m => m.role === 'user').length;
       const characterId = conversation.character.id;
-      // Always sync the count with the actual number of user messages
+      // Filter messages by character_id if available, otherwise assume all messages are for this character
+      const characterMessages = messages.filter(m => 
+        !m.character_id || m.character_id === characterId ||
+        !m.character || m.character.id === characterId ||
+        (!m.character_id && !m.character) // If no character_id field, assume it's for current character
+      );
+      const userMessageCount = characterMessages.filter(m => m.role === 'user').length;
+      
+      // Always sync the count with the actual number of user messages for this character
       // This ensures the count is accurate when switching characters or reloading
       if (messageCountsPerCharacter[characterId] !== userMessageCount) {
+        console.log(`Syncing message count for character ${characterId}: ${userMessageCount} user messages (from ${messages.length} total messages)`);
         // Set the count directly (not increment) to match actual message count
         onMessageSent(characterId, userMessageCount);
       }
@@ -58,18 +67,29 @@ export default function ChatPage({ user, messageCountsPerCharacter = {}, onMessa
       setLoadingMessages(true);
       const msgs = await getConversationMessages(conversationId);
       const loadedMessages = Array.isArray(msgs) ? msgs : (msgs.messages || []);
-      setMessages(loadedMessages);
       
       // Use convData if provided, otherwise use conversation state
       const currentConv = convData || conversation;
+      const characterId = currentConv?.character?.id;
       
-      // Count user messages for this character and initialize count in parent
-      if (currentConv?.character?.id && onMessageSent) {
-        const userMessageCount = loadedMessages.filter(m => m.role === 'user').length;
-        const characterId = currentConv.character.id;
+      // Filter messages by character_id if messages have that field
+      // If not, assume all messages are for the current character
+      const characterMessages = characterId 
+        ? loadedMessages.filter(m => 
+            m.character_id === characterId || 
+            m.character?.id === characterId ||
+            !m.character_id && !m.character // If no character_id, assume it's for current character
+          )
+        : loadedMessages;
+      
+      setMessages(characterMessages);
+      
+      // Count user messages for this character only
+      if (characterId && onMessageSent) {
+        const userMessageCount = characterMessages.filter(m => m.role === 'user').length;
         // Always sync the count with actual messages loaded
         // This ensures accurate per-character tracking
-        console.log(`Initializing message count for character ${characterId}: ${userMessageCount} messages`);
+        console.log(`Initializing message count for character ${characterId}: ${userMessageCount} messages (filtered from ${loadedMessages.length} total messages)`);
         onMessageSent(characterId, userMessageCount);
       }
     } catch (error) {
