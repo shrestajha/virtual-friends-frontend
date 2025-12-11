@@ -188,10 +188,10 @@ export const resetPassword = async (token, newPassword) => {
 
 // Character and Chat APIs
 export const getCharacters = () => http("GET", "/characters");
-export const getChatHistory = (characterId) => 
-  http("GET", `/chat/${characterId}`);
+export const getChatHistory = (userId) => 
+  http("GET", `/history/${userId}`);
 export const sendChatMessage = (characterId, message) => 
-  http("POST", "/chat/send", { character_id: characterId, user_message: message });
+  http("POST", "/message", { character_id: characterId, user_message: message });
 
 // Survey API
 export const getSurveyStatus = () => http("GET", "/survey-status");

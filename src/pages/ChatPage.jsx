@@ -33,12 +33,12 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     loadCharacters();
   }, []);
 
-  // Load chat history when character is selected
+  // Load chat history when character is selected or user changes
   useEffect(() => {
-    if (selectedCharacterId) {
-      loadChatHistory(selectedCharacterId);
+    if (selectedCharacterId && user?.id) {
+      loadChatHistory(user.id);
     }
-  }, [selectedCharacterId]);
+  }, [selectedCharacterId, user?.id]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -101,23 +101,51 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     }
   };
 
-  const loadChatHistory = async (characterId) => {
+  const loadChatHistory = async (userId) => {
     try {
       setLoadingMessages(true);
-      const response = await getChatHistory(characterId);
+      const response = await getChatHistory(userId);
       
       // Handle different response formats
-      const chatMessages = Array.isArray(response) 
+      let chatMessages = Array.isArray(response) 
         ? response 
         : (response.messages || response.chat || []);
       
+      // Filter messages by selected character if messages have character_id
+      if (selectedCharacterId) {
+        chatMessages = chatMessages.filter(msg => 
+          msg.character_id === selectedCharacterId || 
+          msg.character?.id === selectedCharacterId ||
+          (!msg.character_id && !msg.character) // If no character_id, include all
+        );
+      }
+      
+      // Sort messages in chronological order by created_at
+      chatMessages.sort((a, b) => {
+        const timeA = new Date(a.created_at || a.timestamp || 0).getTime();
+        const timeB = new Date(b.created_at || b.timestamp || 0).getTime();
+        return timeA - timeB;
+      });
+      
       setMessages(chatMessages);
       
-      // Update interaction count if returned
-      if (response.interaction_count !== undefined) {
+      // Update interaction counts if returned per character
+      if (response.interaction_counts && typeof response.interaction_counts === 'object') {
         setInteractionCounts(prev => ({
           ...prev,
-          [characterId]: response.interaction_count
+          ...response.interaction_counts
+        }));
+      } else if (response.characters && Array.isArray(response.characters)) {
+        // If characters array is returned with interaction_count
+        const counts = {};
+        response.characters.forEach(char => {
+          if (char.id && typeof char.interaction_count === 'number') {
+            counts[char.id] = char.interaction_count;
+          }
+        });
+        setInteractionCounts(prev => ({
+          ...prev,
+          ...counts
         }));
       }
     } catch (error) {
@@ -130,7 +158,7 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !selectedCharacterId || loading) return;
+    if (!text || !selectedCharacterId || loading || !user?.id) return;
 
     const currentCount = interactionCounts[selectedCharacterId] || 0;
     if (currentCount >= 15) {
@@ -138,49 +166,64 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     }
 
     setInput('');
-    const userMsg = { 
-      role: 'user', 
-      content: text,
-      created_at: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
     try {
+      // Send message to /message endpoint
       const response = await sendChatMessage(selectedCharacterId, text);
       
-      // Backend returns updated chat and interaction_count
-      const updatedMessages = response.messages || response.chat || [];
-      const updatedCount = response.interaction_count !== undefined 
-        ? response.interaction_count 
-        : (currentCount + 1);
+      // After sending, reload history to get updated messages in chronological order
+      await loadChatHistory(user.id);
       
-      setMessages(updatedMessages);
-      setInteractionCounts(prev => ({
-        ...prev,
-        [selectedCharacterId]: updatedCount
-      }));
-
-      // Check if this character reached 15
-      if (updatedCount >= 15) {
-        // Check if ALL characters have reached 15 (not just this one)
-        // Create updated counts object for checking
-        const updatedCounts = {
-          ...interactionCounts,
+      // Update interaction count if returned in response
+      if (response.interaction_count !== undefined) {
+        const updatedCount = response.interaction_count;
+        setInteractionCounts(prev => ({
+          ...prev,
           [selectedCharacterId]: updatedCount
-        };
+        }));
+
+        // Check if this character reached 15
+        if (updatedCount >= 15) {
+          // Check if ALL characters have reached 15 (not just this one)
+          // Create updated counts object for checking
+          const updatedCounts = {
+            ...interactionCounts,
+            [selectedCharacterId]: updatedCount
+          };
+          
+          // Check if all 3 characters have reached 15
+          const allReached = characters.length === 3 && characters.every(char => {
+            const charCount = updatedCounts[char.id] || 0;
+            return charCount >= 15;
+          });
+          
+          console.log('Character interaction counts:', updatedCounts);
+          console.log('All characters reached 15?', allReached);
+          
+          if (allReached) {
+            // All 3 characters have reached 15 - show survey
+            setTimeout(() => {
+              if (onNavigateToSurvey) {
+                onNavigateToSurvey();
+              }
+            }, 1000);
+          }
+        }
+      } else if (response.interaction_counts && typeof response.interaction_counts === 'object') {
+        // If backend returns all interaction counts
+        setInteractionCounts(prev => ({
+          ...prev,
+          ...response.interaction_counts
+        }));
         
-        // Check if all 3 characters have reached 15
+        // Check if all reached 15
         const allReached = characters.length === 3 && characters.every(char => {
-          const charCount = updatedCounts[char.id] || 0;
+          const charCount = response.interaction_counts[char.id] || 0;
           return charCount >= 15;
         });
         
-        console.log('Character interaction counts:', updatedCounts);
-        console.log('All characters reached 15?', allReached);
-        
         if (allReached) {
-          // All 3 characters have reached 15 - show survey
           setTimeout(() => {
             if (onNavigateToSurvey) {
               onNavigateToSurvey();
@@ -190,7 +233,6 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      setMessages(prev => prev.filter(m => m !== userMsg));
       alert('Failed to send message: ' + error.message);
     } finally {
       setLoading(false);
