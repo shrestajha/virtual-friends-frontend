@@ -89,9 +89,28 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
         stack: error.stack
       });
       
-      // Show more detailed error message
+      // Check for specific backend database errors
       const errorMessage = error.message || 'Unknown error occurred';
-      alert(`Failed to load participant data: ${errorMessage}\n\nPlease check:\n1. Backend server is running\n2. You are logged in\n3. Network connection is active`);
+      let userFriendlyMessage = 'Failed to load participant data.';
+      
+      // Check if it's a database schema error
+      if (errorMessage.includes('column participants.email does not exist')) {
+        userFriendlyMessage = 'Backend database configuration error: The participants table is missing an email column. Please contact the administrator.';
+        console.error('BACKEND FIX NEEDED: The participants table needs an email column, or the backend should use user ID from auth token instead of email lookup.');
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        userFriendlyMessage = 'Server error occurred. The backend may need to be updated. Please try again later or contact support.';
+      }
+      
+      // Show error message
+      alert(userFriendlyMessage);
+      
+      // Don't block the UI completely - allow user to see the error but continue
+      // Set a minimal participant state so the UI doesn't break
+      setParticipant({
+        _id: null,
+        surveyUnlocked: false,
+        characters: []
+      });
     } finally {
       setLoadingParticipant(false);
     }
