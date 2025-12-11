@@ -39,7 +39,24 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     try {
       setLoadingParticipant(true);
       // GET /participant (with auth token) - backend auto-creates if missing
+      // Expected response structure:
+      // {
+      //   "participant_id": 1,
+      //   "survey_unlocked": false,
+      //   "characters": [
+      //     {
+      //       "id": 1,
+      //       "name": "A",
+      //       "interactions": 12,
+      //       "chatHistory": [
+      //         { "sender": "participant", "message": "hi", "timestamp": "..." },
+      //         ...
+      //       ]
+      //     }
+      //   ]
+      // }
       const data = await getParticipant();
+      console.log('Participant data loaded:', data);
       setParticipant(data);
       
       // Select first character if available
@@ -64,13 +81,14 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     );
     if (!character) return [];
     
-    // Get chat history for this character
+    // Get chat history for this character (from backend structure)
+    // Backend returns: character.chatHistory array with { sender, message, timestamp }
     const chatHistory = character.chatHistory || character.chat_history || character.messages || [];
     
-    // Sort messages in chronological order
+    // Backend already returns messages ordered by timestamp, but sort to be safe
     return [...chatHistory].sort((a, b) => {
-      const timeA = new Date(a.created_at || a.timestamp || 0).getTime();
-      const timeB = new Date(b.created_at || b.timestamp || 0).getTime();
+      const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+      const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
       return timeA - timeB;
     });
   };
@@ -160,10 +178,11 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     String(c.id) === String(currentCharacterId)
   );
   const chatHistory = getCurrentChatHistory();
-  // Use interactions or interaction_count field
-  const currentCount = currentCharacter?.interactions || currentCharacter?.interaction_count || 0;
+  // Backend returns 'interactions' field
+  const currentCount = currentCharacter?.interactions || 0;
   const hasReachedLimit = currentCount >= 15;
-  const surveyUnlocked = participant.surveyUnlocked === true;
+  // Backend returns 'survey_unlocked' field
+  const surveyUnlocked = participant.survey_unlocked === true || participant.surveyUnlocked === true;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -176,8 +195,8 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           {characters.map((char) => {
-            // Use interactions or interaction_count field
-            const count = char.interactions || char.interaction_count || 0;
+            // Backend returns 'interactions' field
+            const count = char.interactions || 0;
             const isCompleted = count >= 15;
             return (
               <Tab
@@ -255,7 +274,7 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
               key={idx}
               sx={{
                 display: 'flex',
-                justifyContent: (msg.sender === 'user' || msg.role === 'user') ? 'flex-end' : 'flex-start',
+                justifyContent: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? 'flex-end' : 'flex-start',
                 mb: 1
               }}
             >
@@ -264,13 +283,13 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
                 sx={{
                   p: 1.5,
                   maxWidth: '70%',
-                  bgcolor: (msg.sender === 'user' || msg.role === 'user') ? '#1976d2' : '#e0e0e0',
-                  color: (msg.sender === 'user' || msg.role === 'user') ? 'white' : 'black',
+                  bgcolor: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? '#1976d2' : '#e0e0e0',
+                  color: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? 'white' : 'black',
                   borderRadius: 2
                 }}
               >
-                <Typography variant="body1">{msg.content || msg.message}</Typography>
-                {(msg.created_at || msg.timestamp) && (
+                <Typography variant="body1">{msg.message || msg.content}</Typography>
+                {(msg.timestamp || msg.created_at) && (
                   <Typography 
                     variant="caption" 
                     sx={{ 
@@ -280,7 +299,7 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
                       fontSize: '0.7rem'
                     }}
                   >
-                    {new Date(msg.created_at || msg.timestamp).toLocaleTimeString()}
+                    {new Date(msg.timestamp || msg.created_at).toLocaleTimeString()}
                   </Typography>
                 )}
               </Paper>
