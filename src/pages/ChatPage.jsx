@@ -15,9 +15,18 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const messagesEndRef = useRef(null);
 
   // Check survey status on mount and when counts change
+  // Only check if all 3 characters have reached 15
   useEffect(() => {
-    checkSurveyStatus();
-  }, [interactionCounts]);
+    // Only check survey status if we have exactly 3 characters and all have reached 15
+    const allReached = characters.length === 3 && characters.every(char => {
+      const count = interactionCounts[char.id] || 0;
+      return count >= 15;
+    });
+    
+    if (allReached) {
+      checkSurveyStatus();
+    }
+  }, [interactionCounts, characters.length]);
 
   // Load characters on mount
   useEffect(() => {
@@ -38,12 +47,27 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
 
   const checkSurveyStatus = async () => {
     try {
+      // First verify locally that all 3 characters have reached 15
+      const allReached = characters.length === 3 && characters.every(char => {
+        const count = interactionCounts[char.id] || 0;
+        return count >= 15;
+      });
+      
+      if (!allReached) {
+        console.log('Not all characters have reached 15 yet. Current counts:', interactionCounts);
+        return;
+      }
+      
+      console.log('All 3 characters have reached 15. Checking survey status...');
       const status = await getSurveyStatus();
       if (status.showSurvey === true) {
-        // All characters have reached 15 interactions
+        // All characters have reached 15 interactions - redirect to survey
+        console.log('Survey is available. Redirecting...');
         if (onNavigateToSurvey) {
           onNavigateToSurvey();
         }
+      } else {
+        console.log('Survey not yet available from backend:', status);
       }
     } catch (error) {
       console.error('Failed to check survey status:', error);
@@ -139,14 +163,24 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
 
       // Check if this character reached 15
       if (updatedCount >= 15) {
-        // Check if all characters reached 15
-        const allReached = characters.every(char => 
-          (interactionCounts[char.id] || 0) >= 15 || 
-          (char.id === selectedCharacterId && updatedCount >= 15)
-        );
+        // Check if ALL characters have reached 15 (not just this one)
+        // Create updated counts object for checking
+        const updatedCounts = {
+          ...interactionCounts,
+          [selectedCharacterId]: updatedCount
+        };
+        
+        // Check if all 3 characters have reached 15
+        const allReached = characters.length === 3 && characters.every(char => {
+          const charCount = updatedCounts[char.id] || 0;
+          return charCount >= 15;
+        });
+        
+        console.log('Character interaction counts:', updatedCounts);
+        console.log('All characters reached 15?', allReached);
         
         if (allReached) {
-          // Show "Survey unlocked" modal and redirect
+          // All 3 characters have reached 15 - show survey
           setTimeout(() => {
             if (onNavigateToSurvey) {
               onNavigateToSurvey();
@@ -198,7 +232,16 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const selectedCharacter = characters.find(c => c.id === selectedCharacterId);
   const currentCount = selectedCharacterId ? (interactionCounts[selectedCharacterId] || 0) : 0;
   const hasReachedLimit = currentCount >= 15;
-  const allCompleted = characters.every(char => (interactionCounts[char.id] || 0) >= 15);
+  
+  // Check if ALL 3 characters have reached 15 (for survey unlock)
+  const allCompleted = characters.length === 3 && characters.every(char => {
+    const count = interactionCounts[char.id] || 0;
+    return count >= 15;
+  });
+  
+  console.log('Current interaction counts per character:', interactionCounts);
+  console.log('Selected character count:', currentCount, '/15');
+  console.log('All 3 characters completed?', allCompleted);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
