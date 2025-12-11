@@ -197,6 +197,9 @@ export const addMessage = (participantId, characterId, sender, message) =>
     message: message 
   });
 
+// Survey API
+export const getSurveyStatus = () => http("GET", "/survey-status");
+
 // Admin APIs
 export const getAdminConversations = () => http("GET", "/admin/conversations");
 export const getAdminConversationMessages = (conversationId) => 
