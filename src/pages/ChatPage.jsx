@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getParticipant, addMessage } from '../api';
+import { getParticipant, addMessage, getSurveyStatus } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -13,12 +13,12 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const [loadingParticipant, setLoadingParticipant] = useState(true);
   const messagesEndRef = useRef(null);
 
-  // On Load: Call getParticipant(participantId) to fetch participant data
+  // On Load: Call getParticipant() (with auth token) to get or create participant data
   useEffect(() => {
-    if (user?.id) {
-      loadParticipant(user.id);
+    if (user) {
+      loadParticipant();
     }
-  }, [user?.id]);
+  }, [user]);
 
   // Switch Character: Update currentCharacterId and render corresponding chatHistory
   useEffect(() => {
@@ -35,10 +35,11 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     }
   }, [participant, currentCharacterId]);
 
-  const loadParticipant = async (participantId) => {
+  const loadParticipant = async () => {
     try {
       setLoadingParticipant(true);
-      const data = await getParticipant(participantId);
+      // GET /participant (with auth token) - backend auto-creates if missing
+      const data = await getParticipant();
       setParticipant(data);
       
       // Select first character if available
@@ -56,7 +57,11 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const getCurrentChatHistory = () => {
     if (!participant || !currentCharacterId) return [];
     
-    const character = participant.characters?.find(c => c.id === currentCharacterId);
+    const character = participant.characters?.find(c => 
+      c.id === currentCharacterId || 
+      c.id === String(currentCharacterId) ||
+      String(c.id) === String(currentCharacterId)
+    );
     if (!character) return [];
     
     // Get chat history for this character
@@ -70,13 +75,17 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     });
   };
 
-  // Send Message: Call addMessage(participantId, characterId, sender, message)
+  // Send Message: Call POST /mongo/participants/message
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !currentCharacterId || loading || !user?.id || !participant) return;
+    if (!text || !currentCharacterId || loading || !user || !participant) return;
 
-    const character = participant.characters?.find(c => c.id === currentCharacterId);
-    const currentCount = character?.interaction_count || 0;
+    const character = participant.characters?.find(c => 
+      c.id === currentCharacterId || 
+      c.id === String(currentCharacterId) ||
+      String(c.id) === String(currentCharacterId)
+    );
+    const currentCount = character?.interactions || character?.interaction_count || 0;
     
     if (currentCount >= 15) {
       return; // Already at limit
@@ -86,16 +95,25 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     setLoading(true);
 
     try {
-      // Call addMessage via API
-      const response = await addMessage(user.id, currentCharacterId, 'user', text);
+      // Use user's email as participant_id
+      const participantId = user.email || participant._id || participant.id;
       
-      // Reload participant data to get updated chat history
-      await loadParticipant(user.id);
+      // POST /mongo/participants/message
+      // Use user's email as participant_id, character_id as string, sender as "participant"
+      await addMessage(participantId, String(currentCharacterId), 'participant', text);
       
-      // Check if survey is unlocked
-      if (participant?.surveyUnlocked || response.surveyUnlocked) {
-        // Survey is unlocked - show button or redirect
-        console.log('Survey unlocked!');
+      // Reload participant data to get updated chat history and interaction counts
+      await loadParticipant();
+      
+      // Check survey status: Call GET /survey-status to check if survey should be shown
+      try {
+        const surveyStatus = await getSurveyStatus();
+        if (surveyStatus.showSurvey === true || surveyStatus.surveyUnlocked === true) {
+          console.log('Survey unlocked!');
+          // Survey is available - the surveyUnlocked flag in participant will be updated on next load
+        }
+      } catch (error) {
+        console.error('Failed to check survey status:', error);
       }
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -135,10 +153,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     );
   }
 
-  const characters = participant.characters;
-  const currentCharacter = characters.find(c => c.id === currentCharacterId);
+  const characters = participant.characters || [];
+  const currentCharacter = characters.find(c => 
+    c.id === currentCharacterId || 
+    c.id === String(currentCharacterId) ||
+    String(c.id) === String(currentCharacterId)
+  );
   const chatHistory = getCurrentChatHistory();
-  const currentCount = currentCharacter?.interaction_count || 0;
+  // Use interactions or interaction_count field
+  const currentCount = currentCharacter?.interactions || currentCharacter?.interaction_count || 0;
   const hasReachedLimit = currentCount >= 15;
   const surveyUnlocked = participant.surveyUnlocked === true;
 
@@ -153,7 +176,8 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           {characters.map((char) => {
-            const count = char.interaction_count || 0;
+            // Use interactions or interaction_count field
+            const count = char.interactions || char.interaction_count || 0;
             const isCompleted = count >= 15;
             return (
               <Tab

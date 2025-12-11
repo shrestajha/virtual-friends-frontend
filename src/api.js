@@ -187,10 +187,11 @@ export const resetPassword = async (token, newPassword) => {
 };
 
 // Participant APIs
-export const getParticipant = (participantId) => 
-  http("GET", `/participants/${participantId}`);
+// GET /participant (with auth token) - gets or creates participant data
+export const getParticipant = () => http("GET", "/participant");
+// POST /mongo/participants/message - add messages
 export const addMessage = (participantId, characterId, sender, message) => 
-  http("POST", "/message", { 
+  http("POST", "/mongo/participants/message", { 
     participant_id: participantId, 
     character_id: characterId, 
     sender: sender, 
