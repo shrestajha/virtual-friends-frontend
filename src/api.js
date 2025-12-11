@@ -186,15 +186,16 @@ export const resetPassword = async (token, newPassword) => {
   return res.json();
 };
 
-// Character and Chat APIs
-export const getCharacters = () => http("GET", "/characters");
-export const getChatHistory = (userId) => 
-  http("GET", `/history/${userId}`);
-export const sendChatMessage = (characterId, message) => 
-  http("POST", "/message", { character_id: characterId, user_message: message });
-
-// Survey API
-export const getSurveyStatus = () => http("GET", "/survey-status");
+// Participant APIs
+export const getParticipant = (participantId) => 
+  http("GET", `/participants/${participantId}`);
+export const addMessage = (participantId, characterId, sender, message) => 
+  http("POST", "/message", { 
+    participant_id: participantId, 
+    character_id: characterId, 
+    sender: sender, 
+    message: message 
+  });
 
 // Admin APIs
 export const getAdminConversations = () => http("GET", "/admin/conversations");
