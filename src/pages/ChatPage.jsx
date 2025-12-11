@@ -38,14 +38,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const loadParticipant = async () => {
     try {
       setLoadingParticipant(true);
-      // GET /participant (with auth token) - backend auto-creates if missing
+      // Use user's email as participant_id
+      // GET /mongo/participants/{email} - backend auto-creates if missing
       // Expected response structure:
       // {
-      //   "participant_id": 1,
-      //   "survey_unlocked": false,
+      //   "_id": "1",
+      //   "surveyUnlocked": false,
       //   "characters": [
       //     {
-      //       "id": 1,
+      //       "id": "1",
       //       "name": "A",
       //       "interactions": 12,
       //       "chatHistory": [
@@ -55,8 +56,18 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       //     }
       //   ]
       // }
-      const data = await getParticipant();
+      if (!user || !user.email) {
+        throw new Error('User email is required to load participant');
+      }
+      
+      const data = await getParticipant(user.email);
       console.log('Participant data loaded:', data);
+      
+      // Store participant ID (integer) for future use (optional optimization)
+      if (data._id) {
+        localStorage.setItem('participantId', data._id);
+      }
+      
       setParticipant(data);
       
       // Select first character if available
@@ -65,6 +76,8 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       }
     } catch (error) {
       console.error('Failed to load participant:', error);
+      // Show user-friendly error message
+      alert('Failed to load participant data. Please try again.');
     } finally {
       setLoadingParticipant(false);
     }
@@ -113,15 +126,28 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
     setLoading(true);
 
     try {
-      // Use user's email as participant_id
-      const participantId = user.email || participant._id || participant.id;
+      // Use email or stored participant ID (prefer stored ID if available for efficiency)
+      const participantId = localStorage.getItem('participantId') || user.email || participant._id || participant.id;
+      
+      if (!participantId) {
+        throw new Error('Participant ID is required');
+      }
       
       // POST /mongo/participants/message
-      // Use user's email as participant_id, character_id as string, sender as "participant"
-      await addMessage(participantId, String(currentCharacterId), 'participant', text);
+      // Use email or stored participant ID, character_id as string, sender as "participant"
+      const updatedParticipant = await addMessage(participantId, String(currentCharacterId), 'participant', text);
       
-      // Reload participant data to get updated chat history and interaction counts
-      await loadParticipant();
+      // Use the updated participant data from response, or reload if not returned
+      if (updatedParticipant && updatedParticipant.characters) {
+        setParticipant(updatedParticipant);
+        // Update stored participant ID if returned
+        if (updatedParticipant._id) {
+          localStorage.setItem('participantId', updatedParticipant._id);
+        }
+      } else {
+        // Fallback: reload participant data to get updated chat history and interaction counts
+        await loadParticipant();
+      }
       
       // Check survey status: Call GET /survey-status to check if survey should be shown
       try {
@@ -181,8 +207,8 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   // Backend returns 'interactions' field
   const currentCount = currentCharacter?.interactions || 0;
   const hasReachedLimit = currentCount >= 15;
-  // Backend returns 'survey_unlocked' field
-  const surveyUnlocked = participant.survey_unlocked === true || participant.surveyUnlocked === true;
+  // Backend returns 'surveyUnlocked' field (camelCase)
+  const surveyUnlocked = participant.surveyUnlocked === true || participant.survey_unlocked === true;
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>

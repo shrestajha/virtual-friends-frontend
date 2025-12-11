@@ -187,8 +187,15 @@ export const resetPassword = async (token, newPassword) => {
 };
 
 // Participant APIs
-// GET /participant (with auth token) - gets or creates participant data
-export const getParticipant = () => http("GET", "/participant");
+// GET /mongo/participants/{participant_id} - gets or creates participant data
+// participant_id can be email address (e.g., "user@example.com") or integer ID (as string)
+export const getParticipant = (participantId) => {
+  if (!participantId) {
+    throw new Error('Participant ID (email) is required');
+  }
+  return http("GET", `/mongo/participants/${participantId}`);
+};
+
 // POST /mongo/participants/message - add messages
 export const addMessage = (participantId, characterId, sender, message) => 
   http("POST", "/mongo/participants/message", { 
