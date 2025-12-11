@@ -10,17 +10,26 @@ function authHeaders() {
 
 // generic HTTP helper
 async function http(method, path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path}`;
+  const headers = authHeaders();
+  
+  console.log(`[API] ${method} ${url}`, body ? { body } : '');
+  
+  const res = await fetch(url, {
     method,
-    headers: authHeaders(),
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 
   if (!res.ok) {
     const text = await res.text();
+    console.error(`[API Error] ${method} ${url} - ${res.status}:`, text);
     throw new Error(`HTTP ${res.status} — ${text}`);
   }
-  return res.json();
+  
+  const data = await res.json();
+  console.log(`[API Success] ${method} ${url}:`, data);
+  return data;
 }
 
 // character + chat APIs
@@ -193,7 +202,9 @@ export const getParticipant = (participantId) => {
   if (!participantId) {
     throw new Error('Participant ID (email) is required');
   }
-  return http("GET", `/mongo/participants/${participantId}`);
+  // URL encode the participant ID to handle email addresses with special characters
+  const encodedId = encodeURIComponent(participantId);
+  return http("GET", `/mongo/participants/${encodedId}`);
 };
 
 // POST /mongo/participants/message - add messages

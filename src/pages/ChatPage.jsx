@@ -60,12 +60,19 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
         throw new Error('User email is required to load participant');
       }
       
+      console.log('Loading participant for email:', user.email);
       const data = await getParticipant(user.email);
       console.log('Participant data loaded:', data);
+      
+      // Validate response structure
+      if (!data) {
+        throw new Error('Invalid participant data received');
+      }
       
       // Store participant ID (integer) for future use (optional optimization)
       if (data._id) {
         localStorage.setItem('participantId', data._id);
+        console.log('Stored participant ID:', data._id);
       }
       
       setParticipant(data);
@@ -76,8 +83,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       }
     } catch (error) {
       console.error('Failed to load participant:', error);
-      // Show user-friendly error message
-      alert('Failed to load participant data. Please try again.');
+      console.error('Error details:', {
+        message: error.message,
+        user: user?.email,
+        stack: error.stack
+      });
+      
+      // Show more detailed error message
+      const errorMessage = error.message || 'Unknown error occurred';
+      alert(`Failed to load participant data: ${errorMessage}\n\nPlease check:\n1. Backend server is running\n2. You are logged in\n3. Network connection is active`);
     } finally {
       setLoadingParticipant(false);
     }
