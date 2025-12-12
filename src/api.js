@@ -220,6 +220,12 @@ export const addMessage = (participantId, characterId, sender, message) =>
 export const getSurveyStatus = () => http("GET", "/survey-status");
 
 // Admin APIs
+export const getAdminDashboard = () => http("GET", "/admin/dashboard");
 export const getAdminConversations = () => http("GET", "/admin/conversations");
 export const getAdminConversationMessages = (conversationId) => 
   http("GET", `/admin/conversations/${conversationId}/messages`);
+export const getAdminUsers = () => http("GET", "/admin/users/admins");
+export const makeUserAdmin = (userId) => http("POST", `/admin/users/${userId}/make-admin`);
+export const removeUserAdmin = (userId) => http("POST", `/admin/users/${userId}/remove-admin`);
+export const getParticipantChats = (participantId) => 
+  http("GET", `/admin/participants/${participantId}/chats`);

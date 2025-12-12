@@ -444,8 +444,13 @@ export default function App() {
       <div className="container">
         <div className="header">
           <div className="brand" style={{ marginRight: "auto" }}>
-            Admin Dashboard
+            <a href="/chat" style={{ textDecoration: "none", color: "inherit" }}>Virtual Friends</a>
           </div>
+          {user?.is_admin && (
+            <a href="/admin" style={{ marginRight: "1rem", textDecoration: "none", color: "inherit" }}>
+              Admin Dashboard
+            </a>
+          )}
           <button
             className="button small"
             onClick={() => {
@@ -471,7 +476,7 @@ export default function App() {
             Logout
           </button>
         </div>
-        <AdminDashboard />
+        <AdminDashboard user={user} />
       </div>
     );
   }
