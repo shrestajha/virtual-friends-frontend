@@ -111,6 +111,11 @@ export const register = async (email, password) => {
   if (data.characters && Array.isArray(data.characters)) {
     localStorage.setItem("assignedCharacters", JSON.stringify(data.characters));
   }
+  // Store token if provided in registration response
+  if (data.token || data.access_token) {
+    localStorage.setItem("token", data.token || data.access_token);
+  }
+  // Return data including survey_required field
   return data;
 };
 
@@ -126,6 +131,8 @@ export const login = async (email, password) => {
   }
   const data = await res.json();
   localStorage.setItem("token", data.access_token);
+  // Return data including survey_required field if present
+  return data;
 };
 
 export const logout = () => {
@@ -157,6 +164,10 @@ export const me = async () => {
     if (Object.keys(messageCounts).length > 0) {
       localStorage.setItem("messageCountsPerCharacter", JSON.stringify(messageCounts));
     }
+  }
+  // Store survey_required field if present
+  if (typeof data.survey_required === 'boolean') {
+    // This will be stored in the user object in App.jsx
   }
   return data;
 };
@@ -218,6 +229,18 @@ export const addMessage = (participantId, characterId, sender, message) =>
 
 // Survey API
 export const getSurveyStatus = () => http("GET", "/survey-status");
+
+// Signup Survey API
+export const submitSignupSurvey = (answers) => 
+  http("POST", "/auth/signup-survey", {
+    q1_ai_chatbot_frequency: answers.q1,
+    q2_virtual_character_experience: answers.q2,
+    q3_ai_reasoning_belief: answers.q3,
+    q4_ai_empathy_belief: answers.q4
+  });
+
+export const getSignupSurveyStatus = () => 
+  http("GET", "/auth/signup-survey/status");
 
 // Admin APIs
 export const getAdminDashboard = () => http("GET", "/admin/dashboard");

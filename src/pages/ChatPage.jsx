@@ -93,6 +93,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       const errorMessage = error.message || 'Unknown error occurred';
       let userFriendlyMessage = 'Failed to load participant data.';
       
+      // Check if it's a 403 error - survey required
+      if (errorMessage.includes('403') || errorMessage.includes('survey') || errorMessage.includes('Please complete')) {
+        userFriendlyMessage = 'Please complete the signup survey before accessing chat features.';
+        // Redirect to signup survey
+        window.history.pushState({}, "", "/signup-survey");
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
+      
       // Check if it's a database schema error
       if (errorMessage.includes('column participants.email does not exist')) {
         userFriendlyMessage = 'Backend database configuration error: The participants table is missing an email column. Please contact the administrator.';
@@ -194,7 +203,18 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      alert('Failed to send message: ' + error.message);
+      const errorMessage = error.message || '';
+      
+      // Handle 403 error - survey required
+      if (errorMessage.includes('403') || errorMessage.includes('survey') || errorMessage.includes('Please complete')) {
+        alert('Please complete the signup survey before accessing chat features.');
+        // Redirect to signup survey
+        window.history.pushState({}, "", "/signup-survey");
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
+      
+      alert('Failed to send message: ' + errorMessage);
     } finally {
       setLoading(false);
     }

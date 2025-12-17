@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { login, register } from "./api";
 
-export default function LoginForm({ onSuccess, initialMode = "register", loginMessage = "" }) {
+export default function LoginForm({ onSuccess, onSurveyRequired, initialMode = "register", loginMessage = "" }) {
   const [mode, setMode] = useState(initialMode); // login | register
 
   // Update mode when initialMode prop changes (e.g., when route changes)
@@ -76,9 +76,14 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
     e.preventDefault();
     try {
       if (mode === "login") {
-        await login(email, password);
+        const loginData = await login(email, password);
         setError("");
-        onSuccess();
+        // Check if survey is required
+        if (loginData.survey_required === true && onSurveyRequired) {
+          onSurveyRequired();
+        } else {
+          onSuccess();
+        }
       } else {
 
         // Validate password before submitting
@@ -91,6 +96,12 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
         // Store assigned characters in localStorage
         if (res.characters && Array.isArray(res.characters)) {
           localStorage.setItem("assignedCharacters", JSON.stringify(res.characters));
+        }
+        // Check if survey is required after registration
+        if (res.survey_required === true && onSurveyRequired) {
+          setError("");
+          onSurveyRequired();
+          return;
         }
         // If your backend returns character info:
         if (res.character) {
@@ -140,30 +151,30 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
 
   // Default login/register form
   if (mode === "login") {
-    return (
+  return (
       <div className="panel" style={{ padding: 32, maxWidth: 400, margin: "40px auto" }}>
         <h2 style={{ textAlign: "center", marginBottom: 24, fontSize: "24px", fontWeight: 600 }}>
           Log In
-        </h2>
+      </h2>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            className="input"
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+      <form onSubmit={handleSubmit}>
+        <input
+          className="input"
+          type="email"
+          placeholder="Email address"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
             style={{ marginBottom: "16px" }}
-          />
+        />
           <div style={{ position: "relative", marginBottom: "16px" }}>
-            <input
-              className="input"
+        <input
+          className="input"
               type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
               style={{ width: "100%", paddingRight: "40px" }}
             />
             <button
@@ -212,7 +223,7 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
             </a>
           </div>
 
-          <button type="submit" className="button" style={{ width: "100%" }}>
+        <button type="submit" className="button" style={{ width: "100%" }}>
             Log In
           </button>
         </form>
@@ -410,7 +421,7 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
       {error && <div className="hint" style={{ color: "red", marginTop: "12px" }}>{error}</div>}
 
       <div className="hint" style={{ marginTop: 16, textAlign: "center" }}>
-        Already registered?{" "}
+            Already registered?{" "}
         <a
           href="/login"
           onClick={(e) => {
@@ -421,7 +432,7 @@ export default function LoginForm({ onSuccess, initialMode = "register", loginMe
           }}
           className="link"
         >
-          Log in
+              Log in
         </a>
       </div>
     </div>

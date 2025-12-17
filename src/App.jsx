@@ -6,6 +6,7 @@ import ResetPassword from "./ResetPassword";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
 import Survey from "./components/Survey";
+import SignupSurvey from "./components/SignupSurvey";
 import ChatBox from "./components/ChatBox";
 import ChatPage from "./pages/ChatPage";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -58,6 +59,32 @@ export default function App() {
           setView("admin");
           return;
         } else if (path === "/chat" || path === "/") {
+          // Check if survey is required before allowing chat access
+          if (user.survey_required === true) {
+            window.history.pushState({}, "", "/signup-survey");
+            setView("signup-survey");
+            return;
+          }
+          setView("chat");
+          return;
+        }
+      }
+
+      // Handle signup survey route (requires authentication)
+      if (path === "/signup-survey") {
+        if (!user) {
+          // Not logged in, redirect to login
+          window.history.pushState({}, "", "/login");
+          setView("login");
+          return;
+        }
+        // Check if survey is actually required
+        if (user.survey_required === true) {
+          setView("signup-survey");
+          return;
+        } else {
+          // Survey already completed, redirect to chat
+          window.history.pushState({}, "", "/chat");
           setView("chat");
           return;
         }
@@ -150,7 +177,14 @@ export default function App() {
         setMessageCountsPerCharacter(counts);
         console.log('Initialized message counts from /auth/me:', counts);
         
-        // Check survey status on page load
+        // Check if signup survey is required
+        if (u.survey_required === true) {
+          setView("signup-survey");
+          window.history.pushState({}, "", "/signup-survey");
+          return;
+        }
+        
+        // Check survey status on page load (for 15 interactions survey)
         try {
           const surveyStatus = await getSurveyStatus();
           if (surveyStatus.showSurvey === true) {
@@ -395,7 +429,7 @@ export default function App() {
           onSuccess={async () => {
             const u = await me();
             setUser(u);
-            // Store user with is_admin flag
+            // Store user with is_admin flag and survey_required
             localStorage.setItem("user", JSON.stringify(u));
             
             // Initialize message counts from /auth/me response
@@ -410,7 +444,15 @@ export default function App() {
             setMessageCountsPerCharacter(counts);
             console.log('Initialized message counts from /auth/me:', counts);
             
-            // Check survey status after login
+            // Check if signup survey is required
+            if (u.survey_required === true) {
+              setView("signup-survey");
+              window.history.pushState({}, "", "/signup-survey");
+              setLoginMessage("");
+              return;
+            }
+            
+            // Check survey status after login (for 15 interactions survey)
             try {
               const surveyStatus = await getSurveyStatus();
               if (surveyStatus.showSurvey === true) {
@@ -428,8 +470,42 @@ export default function App() {
             window.history.pushState({}, "", "/chat");
             loadAssignedCharacters(u);
           }}
+          onSurveyRequired={async () => {
+            // After registration, check user status
+            const u = await me();
+            setUser(u);
+            localStorage.setItem("user", JSON.stringify(u));
+            setView("signup-survey");
+            window.history.pushState({}, "", "/signup-survey");
+            setLoginMessage("");
+          }}
         />
       </div>
+    );
+  }
+
+  // Show signup survey
+  if (view === "signup-survey") {
+    return (
+      <SignupSurvey
+        onComplete={async () => {
+          // Reload user data to get updated survey_required status
+          try {
+            const u = await me();
+            setUser(u);
+            localStorage.setItem("user", JSON.stringify(u));
+            // Navigate to chat
+            setView("chat");
+            window.history.pushState({}, "", "/chat");
+            loadAssignedCharacters(u);
+          } catch (error) {
+            console.error('Failed to reload user data:', error);
+            // Still navigate to chat even if reload fails
+            setView("chat");
+            window.history.pushState({}, "", "/chat");
+          }
+        }}
+      />
     );
   }
 
