@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getParticipant, addMessage, getSurveyStatus } from '../api';
+import { getParticipant, addMessage } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
 
-export default function ChatPage({ user, onNavigateToSurvey }) {
+export default function ChatPage({ user }) {
   // State Management
   const [participant, setParticipant] = useState(null); // Stores all 3 characters and their chat histories
   const [currentCharacterId, setCurrentCharacterId] = useState(null); // Tracks which character's chat is displayed
@@ -217,16 +216,7 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
         await loadParticipant();
       }
       
-      // Check survey status: Call GET /survey-status to check if survey should be shown
-      try {
-        const surveyStatus = await getSurveyStatus();
-        if (surveyStatus.showSurvey === true || surveyStatus.surveyUnlocked === true) {
-          console.log('Survey unlocked!');
-          // Survey is available - the surveyUnlocked flag in participant will be updated on next load
-        }
-      } catch (error) {
-        console.error('Failed to check survey status:', error);
-      }
+      // Survey is now handled via show_survey flag in addMessage response
     } catch (error) {
       console.error('Failed to send message:', error);
       const errorMessage = error.message || '';
@@ -343,28 +333,7 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
         </Tabs>
       </Paper>
 
-      {/* Survey Button - Displayed only when surveyUnlocked is true */}
-      {surveyUnlocked && (
-        <Paper elevation={1} sx={{ p: 2, bgcolor: '#d1fae5', borderRadius: 0 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              All characters completed! Survey is now available.
-            </Typography>
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<AssignmentIcon />}
-              onClick={() => {
-                if (onNavigateToSurvey) {
-                  onNavigateToSurvey();
-                }
-              }}
-            >
-              Take Survey
-            </Button>
-          </Box>
-        </Paper>
-      )}
+      {/* Survey is now handled automatically via CharacterInteractionSurvey component */}
 
       {/* Chat Window: Displays chatHistory for the selected character */}
       <Box 

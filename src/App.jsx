@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { me, logout, getSurveyStatus } from "./api";
+import { me, logout } from "./api";
 import LoginForm from "./LoginForm";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
-import Survey from "./components/Survey";
 import SignupSurvey from "./components/SignupSurvey";
 import ChatBox from "./components/ChatBox";
 import ChatPage from "./pages/ChatPage";
@@ -184,17 +183,7 @@ export default function App() {
           return;
         }
         
-        // Check survey status on page load (for 15 interactions survey)
-        try {
-          const surveyStatus = await getSurveyStatus();
-          if (surveyStatus.showSurvey === true) {
-            setView("survey");
-            window.history.pushState({}, "", "/survey");
-            return;
-          }
-        } catch (error) {
-          console.error('Failed to check survey status:', error);
-        }
+        // Survey status is now handled in ChatPage component
         
         // Determine view based on path
         if (path.startsWith("/admin/conversations/")) {
@@ -452,18 +441,7 @@ export default function App() {
               return;
             }
             
-            // Check survey status after login (for 15 interactions survey)
-            try {
-              const surveyStatus = await getSurveyStatus();
-              if (surveyStatus.showSurvey === true) {
-                setView("survey");
-                window.history.pushState({}, "", "/survey");
-                setLoginMessage("");
-                return;
-              }
-            } catch (error) {
-              console.error('Failed to check survey status:', error);
-            }
+            // Survey status is now handled in ChatPage component
             
             setView("chat");
             setLoginMessage("");
@@ -509,10 +487,7 @@ export default function App() {
     );
   }
 
-  // Show survey after 15 messages
-  if (view === "survey") {
-    return <Survey />;
-  }
+  // Survey is now handled in ChatPage component (CharacterInteractionSurvey)
 
   // Show admin dashboard
   if (view === "admin" && user?.is_admin) {
@@ -613,10 +588,6 @@ export default function App() {
         </div>
         <ChatPage 
           user={user} 
-          onNavigateToSurvey={() => {
-            setView("survey");
-            window.history.pushState({}, "", "/survey");
-          }}
         />
       </div>
     );
