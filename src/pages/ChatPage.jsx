@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getParticipant, addMessage } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
@@ -19,6 +19,56 @@ export default function ChatPage({ user }) {
   const [surveyCharacterId, setSurveyCharacterId] = useState(null);
   const [surveyCharacterName, setSurveyCharacterName] = useState('');
   const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
+
+  // Check if all characters have 15 interactions and show survey for the first one that needs it
+  const checkAndShowSurvey = useCallback((participantData) => {
+    if (!participantData || !participantData.characters) {
+      console.log('checkAndShowSurvey: No participant data or characters');
+      return;
+    }
+    
+    const characters = participantData.characters || [];
+    console.log('checkAndShowSurvey: Checking', characters.length, 'characters');
+    
+    // Log interaction counts for debugging
+    characters.forEach(char => {
+      console.log(`Character ${char.name} (${char.id}): ${char.interactions || 0} interactions`);
+    });
+    
+    // Check if all characters have reached 15 interactions
+    const allComplete = characters.every(char => {
+      const interactions = char.interactions || 0;
+      return interactions >= 15;
+    });
+    
+    console.log('checkAndShowSurvey: All characters complete?', allComplete);
+    console.log('checkAndShowSurvey: Completed surveys:', Array.from(completedSurveys));
+    
+    if (allComplete && characters.length > 0) {
+      // Find the first character that hasn't had its survey completed
+      const characterNeedingSurvey = characters.find(char => {
+        const charId = String(char.id);
+        const isCompleted = completedSurveys.has(charId);
+        console.log(`Character ${char.name} (${charId}): survey completed?`, isCompleted);
+        return !isCompleted;
+      });
+      
+      if (characterNeedingSurvey) {
+        const charId = String(characterNeedingSurvey.id);
+        const charName = characterNeedingSurvey.name || 'this character';
+        
+        console.log('All characters complete! Showing survey for:', charName, '(ID:', charId, ')');
+        setSurveyCharacterId(charId);
+        setSurveyCharacterName(charName);
+        setSurveyOpen(true);
+      } else {
+        console.log('All characters complete but all surveys already completed');
+      }
+    } else {
+      const incompleteCount = characters.filter(char => (char.interactions || 0) < 15).length;
+      console.log(`Not all characters complete. ${incompleteCount} characters still need interactions.`);
+    }
+  }, [completedSurveys]);
 
   // On Load: Call getParticipant() (with auth token) to get or create participant data
   useEffect(() => {
@@ -41,6 +91,13 @@ export default function ChatPage({ user }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [participant, currentCharacterId]);
+
+  // Check for survey eligibility when participant data changes
+  useEffect(() => {
+    if (participant && participant.characters && participant.characters.length > 0) {
+      checkAndShowSurvey(participant);
+    }
+  }, [participant, checkAndShowSurvey]);
 
   const loadParticipant = async () => {
     try {
@@ -88,6 +145,11 @@ export default function ChatPage({ user }) {
       if (data.characters && data.characters.length > 0 && !currentCharacterId) {
         setCurrentCharacterId(data.characters[0].id);
       }
+      
+      // Check if survey should be shown after loading
+      checkAndShowSurvey(data);
+      
+      return data;
     } catch (error) {
       console.error('Failed to load participant:', error);
       console.error('Error details:', {
@@ -127,6 +189,7 @@ export default function ChatPage({ user }) {
         surveyUnlocked: false,
         characters: []
       });
+      return null;
     } finally {
       setLoadingParticipant(false);
     }
@@ -189,6 +252,7 @@ export default function ChatPage({ user }) {
       // Check if response includes survey trigger information
       // The backend may return show_survey, character_id, and character_name in the response
       if (updatedParticipant && updatedParticipant.show_survey === true) {
+        console.log('Survey trigger detected in addMessage response');
         const charId = updatedParticipant.character_id || currentCharacterId;
         const charName = updatedParticipant.character_name || 
           participant.characters?.find(c => 
@@ -199,9 +263,12 @@ export default function ChatPage({ user }) {
         
         // Only show survey if not already completed for this character
         if (!completedSurveys.has(String(charId))) {
+          console.log('Opening survey for character:', charName, '(ID:', charId, ')');
           setSurveyCharacterId(charId);
           setSurveyCharacterName(charName);
           setSurveyOpen(true);
+        } else {
+          console.log('Survey already completed for character:', charName);
         }
       }
       
@@ -212,12 +279,18 @@ export default function ChatPage({ user }) {
         if (updatedParticipant._id) {
           localStorage.setItem('participantId', updatedParticipant._id);
         }
+        
+        // Check if all characters have reached 15 interactions and show survey
+        checkAndShowSurvey(updatedParticipant);
       } else {
         // Fallback: reload participant data to get updated chat history and interaction counts
-        await loadParticipant();
+        const reloadedParticipant = await loadParticipant();
+        if (reloadedParticipant) {
+          checkAndShowSurvey(reloadedParticipant);
+        }
       }
       
-      // Survey is now handled via show_survey flag in addMessage response
+      // Survey is now handled via show_survey flag in addMessage response OR by checking interactions
       
       // Refocus input field after successful send (unless survey dialog opens)
       if (!updatedParticipant || updatedParticipant.show_survey !== true) {
