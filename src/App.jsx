@@ -553,9 +553,20 @@ export default function App() {
   // Show chat page (new /chat route)
   if (view === "chat" && user) {
     return (
-      <div className="container" style={{ height: "100vh", overflow: "hidden" }}>
+      <div className="container" style={{ 
+        height: "100vh", 
+        display: "flex", 
+        flexDirection: "column", 
+        overflow: "hidden" 
+      }}>
         {/* Header with logout and admin link */}
-        <div className="header" style={{ position: "relative", zIndex: 1000 }}>
+        <div className="header" style={{ 
+          flexShrink: 0,
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          backgroundColor: "var(--bg, #fff)"
+        }}>
           <div className="brand" style={{ marginRight: "auto" }}>
             Welcome, {user?.email || "User"}
           </div>
@@ -586,9 +597,11 @@ export default function App() {
             Logout
           </button>
         </div>
-        <ChatPage 
-          user={user} 
-        />
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <ChatPage 
+            user={user} 
+          />
+        </div>
       </div>
     );
   }

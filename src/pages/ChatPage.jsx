@@ -289,7 +289,7 @@ export default function ChatPage({ user }) {
   };
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Character Tabs / Selector */}
       <Paper elevation={2} sx={{ borderRadius: 0 }}>
         <Tabs
