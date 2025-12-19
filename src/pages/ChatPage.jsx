@@ -367,12 +367,22 @@ export default function ChatPage({ user }) {
   const surveyUnlocked = participant.surveyUnlocked === true || participant.survey_unlocked === true;
 
   // Handle survey completion
-  const handleSurveyComplete = (characterId, characterName) => {
+  const handleSurveyComplete = async (characterId, characterName) => {
     // Mark this character's survey as completed
     setCompletedSurveys(prev => new Set([...prev, String(characterId)]));
     console.log(`Survey completed for character ${characterId} (${characterName})`);
-    // Optionally reload participant data to get updated survey status
-    loadParticipant();
+    
+    // Show success message
+    alert(`Survey completed! Thank you for your feedback. You can continue chatting with ${characterName}.`);
+    
+    // Reload participant data to get updated interaction counts (should be reset to 0)
+    // Chat history will remain visible as it's preserved in the backend
+    await loadParticipant();
+    
+    // Refocus input field so user can continue chatting
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
   };
 
   return (

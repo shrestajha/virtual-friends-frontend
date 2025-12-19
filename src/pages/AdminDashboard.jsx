@@ -32,6 +32,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 
 // Helper function to get EI/CI level color
 const getLevelColor = (level) => {
@@ -60,10 +61,45 @@ const LevelBadge = ({ level, label }) => (
   />
 );
 
+// Helper function to get Likert scale label
+const getLikertLabel = (value) => {
+  const labels = {
+    1: "Strongly Disagree",
+    2: "Disagree",
+    3: "Neither Agree nor Disagree",
+    4: "Somewhat Agree",
+    5: "Agree",
+    6: "Strongly Agree"
+  };
+  return labels[value] || "Unknown";
+};
+
+// Helper function to calculate average score
+const calculateSurveyAverage = (surveyData) => {
+  if (!surveyData) return 0;
+  const values = [
+    surveyData.q1_thoughtful_guidance,
+    surveyData.q2_explained_tradeoffs,
+    surveyData.q3_problem_solving,
+    surveyData.q4_validated_feelings,
+    surveyData.q5_supportive_compassionate,
+    surveyData.q6_emotional_needs,
+    surveyData.q7_seemed_intelligent,
+    surveyData.q8_would_talk_again
+  ].filter(v => v !== undefined && v !== null);
+  
+  if (values.length === 0) return 0;
+  const sum = values.reduce((a, b) => a + b, 0);
+  return (sum / values.length).toFixed(1);
+};
+
 // Expandable Chat Row Component
-const ChatRow = ({ chat, type }) => {
+const ChatRow = ({ chat, type, onViewSurvey }) => {
   const [expanded, setExpanded] = useState(false);
+  const [surveyExpanded, setSurveyExpanded] = useState(false);
   const messages = chat.messages || [];
+  const surveyData = chat.interaction_survey_data;
+  const surveyCompleted = chat.interaction_survey_completed === true;
 
   return (
     <>
@@ -90,15 +126,39 @@ const ChatRow = ({ chat, type }) => {
         </TableCell>
         <TableCell>{formatDate(type === 'user' ? chat.last_message_at : chat.last_message_at)}</TableCell>
         <TableCell>
-          <Chip
-            label={chat.survey_unlocked ? 'Unlocked' : 'Locked'}
-            color={chat.survey_unlocked ? 'success' : 'default'}
-            size="small"
-          />
+          {surveyCompleted && surveyData ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                label={`Survey (Avg: ${calculateSurveyAverage(surveyData)}/6)`}
+                color="success"
+                size="small"
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AssignmentIcon />}
+                onClick={() => {
+                  if (onViewSurvey) {
+                    onViewSurvey(chat, surveyData);
+                  } else {
+                    setSurveyExpanded(!surveyExpanded);
+                  }
+                }}
+              >
+                View
+              </Button>
+            </Box>
+          ) : (
+            <Chip
+              label={chat.survey_unlocked ? 'Unlocked' : 'No Survey'}
+              color={chat.survey_unlocked ? 'warning' : 'default'}
+              size="small"
+            />
+          )}
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell colSpan={7} sx={{ py: 0, borderBottom: expanded ? 1 : 0 }}>
+        <TableCell colSpan={7} sx={{ py: 0, borderBottom: expanded || surveyExpanded ? 1 : 0 }}>
           <Collapse in={expanded} timeout="auto" unmountOnExit>
             <Box sx={{ p: 2, bgcolor: '#f5f5f5' }}>
               <Typography variant="subtitle2" gutterBottom>
@@ -136,6 +196,76 @@ const ChatRow = ({ chat, type }) => {
               )}
             </Box>
           </Collapse>
+          {surveyData && (
+            <Collapse in={surveyExpanded} timeout="auto" unmountOnExit>
+              <Box sx={{ p: 2, bgcolor: '#e8f5e9' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Survey Results: {chat.character_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Completed: {formatDate(surveyData.completed_at)}
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Question</strong></TableCell>
+                        <TableCell align="center"><strong>Response</strong></TableCell>
+                        <TableCell align="center"><strong>Score</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Provided thoughtful, strategic guidance</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q1_thoughtful_guidance)}</TableCell>
+                        <TableCell align="center">{surveyData.q1_thoughtful_guidance}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Clearly explained trade-offs or options</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q2_explained_tradeoffs)}</TableCell>
+                        <TableCell align="center">{surveyData.q2_explained_tradeoffs}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Seemed capable at problem-solving</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q3_problem_solving)}</TableCell>
+                        <TableCell align="center">{surveyData.q3_problem_solving}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Recognized and validated the user's feelings</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q4_validated_feelings)}</TableCell>
+                        <TableCell align="center">{surveyData.q4_validated_feelings}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Seemed supportive and compassionate</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q5_supportive_compassionate)}</TableCell>
+                        <TableCell align="center">{surveyData.q5_supportive_compassionate}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Prioritized the user's emotional needs</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q6_emotional_needs)}</TableCell>
+                        <TableCell align="center">{surveyData.q6_emotional_needs}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Overall, seemed intelligent</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q7_seemed_intelligent)}</TableCell>
+                        <TableCell align="center">{surveyData.q7_seemed_intelligent}/6</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>I would want to talk to this character again</TableCell>
+                        <TableCell align="center">{getLikertLabel(surveyData.q8_would_talk_again)}</TableCell>
+                        <TableCell align="center">{surveyData.q8_would_talk_again}/6</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <Box sx={{ mt: 2, p: 1, bgcolor: '#c8e6c9', borderRadius: 1 }}>
+                  <Typography variant="body2">
+                    <strong>Average Score:</strong> {calculateSurveyAverage(surveyData)}/6
+                  </Typography>
+                </Box>
+              </Box>
+            </Collapse>
+          )}
         </TableCell>
       </TableRow>
     </>
@@ -152,11 +282,25 @@ export default function AdminDashboard({ user }) {
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [adminError, setAdminError] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [surveyDialogOpen, setSurveyDialogOpen] = useState(false);
+  const [selectedSurvey, setSelectedSurvey] = useState(null);
 
   useEffect(() => {
     loadDashboard();
     loadAdminUsers();
   }, []);
+
+  const handleViewSurvey = (chat, surveyData) => {
+    setSelectedSurvey({
+      userEmail: chat.user_email || chat.participant_email || 'No email',
+      characterName: chat.character_name,
+      characterEI: chat.character_ei_level,
+      characterCI: chat.character_ci_level,
+      surveyData: surveyData,
+      completedAt: surveyData?.completed_at
+    });
+    setSurveyDialogOpen(true);
+  };
 
   const loadDashboard = async () => {
     try {
@@ -446,7 +590,7 @@ export default function AdminDashboard({ user }) {
                   </TableRow>
                 ) : (
                   user_chats.map((chat, idx) => (
-                    <ChatRow key={idx} chat={chat} type="user" />
+                    <ChatRow key={idx} chat={chat} type="user" onViewSurvey={handleViewSurvey} />
                   ))
                 )}
               </TableBody>
@@ -480,7 +624,7 @@ export default function AdminDashboard({ user }) {
                   </TableRow>
                 ) : (
                   participant_chats.map((chat, idx) => (
-                    <ChatRow key={idx} chat={chat} type="participant" />
+                    <ChatRow key={idx} chat={chat} type="participant" onViewSurvey={handleViewSurvey} />
                   ))
                 )}
               </TableBody>
@@ -565,6 +709,99 @@ export default function AdminDashboard({ user }) {
           >
             {adminLoading ? <CircularProgress size={20} /> : 'Make Admin'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Survey Details Dialog */}
+      <Dialog 
+        open={surveyDialogOpen} 
+        onClose={() => setSurveyDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Survey Results: {selectedSurvey?.characterName}
+        </DialogTitle>
+        <DialogContent>
+          {selectedSurvey && (
+            <>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>User:</strong> {selectedSurvey.userEmail}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Character:</strong> {selectedSurvey.characterName} 
+                  {' '}(EI: {selectedSurvey.characterEI}, CI: {selectedSurvey.characterCI})
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Completed:</strong> {formatDate(selectedSurvey.completedAt)}
+                </Typography>
+              </Box>
+              
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><strong>Question</strong></TableCell>
+                      <TableCell align="center"><strong>Response</strong></TableCell>
+                      <TableCell align="center"><strong>Score</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Provided thoughtful, strategic guidance</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q1_thoughtful_guidance)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q1_thoughtful_guidance}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Clearly explained trade-offs or options</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q2_explained_tradeoffs)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q2_explained_tradeoffs}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Seemed capable at problem-solving</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q3_problem_solving)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q3_problem_solving}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Recognized and validated the user's feelings</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q4_validated_feelings)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q4_validated_feelings}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Seemed supportive and compassionate</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q5_supportive_compassionate)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q5_supportive_compassionate}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Prioritized the user's emotional needs</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q6_emotional_needs)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q6_emotional_needs}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Overall, seemed intelligent</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q7_seemed_intelligent)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q7_seemed_intelligent}/6</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>I would want to talk to this character again</TableCell>
+                      <TableCell align="center">{getLikertLabel(selectedSurvey.surveyData?.q8_would_talk_again)}</TableCell>
+                      <TableCell align="center">{selectedSurvey.surveyData?.q8_would_talk_again}/6</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
+              <Box sx={{ mt: 2, p: 2, bgcolor: '#c8e6c9', borderRadius: 1 }}>
+                <Typography variant="h6">
+                  <strong>Average Score:</strong> {calculateSurveyAverage(selectedSurvey.surveyData)}/6
+                </Typography>
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSurveyDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
