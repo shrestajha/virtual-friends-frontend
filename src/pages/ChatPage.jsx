@@ -12,6 +12,7 @@ export default function ChatPage({ user }) {
   const [loading, setLoading] = useState(false);
   const [loadingParticipant, setLoadingParticipant] = useState(true);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   
   // Character Interaction Survey state
   const [surveyOpen, setSurveyOpen] = useState(false);
@@ -217,6 +218,14 @@ export default function ChatPage({ user }) {
       }
       
       // Survey is now handled via show_survey flag in addMessage response
+      
+      // Refocus input field after successful send (unless survey dialog opens)
+      if (!updatedParticipant || updatedParticipant.show_survey !== true) {
+        // Only refocus if survey dialog is not opening
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       const errorMessage = error.message || '';
@@ -231,6 +240,11 @@ export default function ChatPage({ user }) {
       }
       
       alert('Failed to send message: ' + errorMessage);
+      
+      // Refocus input field even on error (so user can retry)
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
     } finally {
       setLoading(false);
     }
@@ -422,6 +436,7 @@ export default function ChatPage({ user }) {
       <Paper elevation={3} sx={{ p: 2, borderRadius: 0 }}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
+            inputRef={inputRef}
             fullWidth
             multiline
             maxRows={4}
@@ -436,6 +451,7 @@ export default function ChatPage({ user }) {
             disabled={loading || hasReachedLimit}
             variant="outlined"
             size="small"
+            autoFocus
           />
           <Button
             variant="contained"
