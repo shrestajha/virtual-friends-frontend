@@ -242,6 +242,22 @@ export const submitSignupSurvey = (answers) =>
 export const getSignupSurveyStatus = () => 
   http("GET", "/auth/signup-survey/status");
 
+// Character Interaction Survey API
+export const getCharacterSurveyStatus = (characterId) => 
+  http("GET", `/characters/${characterId}/interaction-survey/status`);
+
+export const submitCharacterSurvey = (characterId, answers) => 
+  http("POST", `/characters/${characterId}/interaction-survey`, {
+    q1_thoughtful_guidance: answers.q1_thoughtful_guidance,
+    q2_explained_tradeoffs: answers.q2_explained_tradeoffs,
+    q3_problem_solving: answers.q3_problem_solving,
+    q4_validated_feelings: answers.q4_validated_feelings,
+    q5_supportive_compassionate: answers.q5_supportive_compassionate,
+    q6_emotional_needs: answers.q6_emotional_needs,
+    q7_seemed_intelligent: answers.q7_seemed_intelligent,
+    q8_would_talk_again: answers.q8_would_talk_again
+  });
+
 // Admin APIs
 export const getAdminDashboard = () => http("GET", "/admin/dashboard");
 export const getAdminConversations = () => http("GET", "/admin/conversations");

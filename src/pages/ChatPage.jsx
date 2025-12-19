@@ -3,6 +3,7 @@ import { getParticipant, addMessage, getSurveyStatus } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
 
 export default function ChatPage({ user, onNavigateToSurvey }) {
   // State Management
@@ -12,6 +13,12 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const [loading, setLoading] = useState(false);
   const [loadingParticipant, setLoadingParticipant] = useState(true);
   const messagesEndRef = useRef(null);
+  
+  // Character Interaction Survey state
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [surveyCharacterId, setSurveyCharacterId] = useState(null);
+  const [surveyCharacterName, setSurveyCharacterName] = useState('');
+  const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
 
   // On Load: Call getParticipant() (with auth token) to get or create participant data
   useEffect(() => {
@@ -179,6 +186,25 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
       // Use email or stored participant ID, character_id as string, sender as "participant"
       const updatedParticipant = await addMessage(participantId, String(currentCharacterId), 'participant', text);
       
+      // Check if response includes survey trigger information
+      // The backend may return show_survey, character_id, and character_name in the response
+      if (updatedParticipant && updatedParticipant.show_survey === true) {
+        const charId = updatedParticipant.character_id || currentCharacterId;
+        const charName = updatedParticipant.character_name || 
+          participant.characters?.find(c => 
+            c.id === charId || 
+            c.id === String(charId) ||
+            String(c.id) === String(charId)
+          )?.name || 'this character';
+        
+        // Only show survey if not already completed for this character
+        if (!completedSurveys.has(String(charId))) {
+          setSurveyCharacterId(charId);
+          setSurveyCharacterName(charName);
+          setSurveyOpen(true);
+        }
+      }
+      
       // Use the updated participant data from response, or reload if not returned
       if (updatedParticipant && updatedParticipant.characters) {
         setParticipant(updatedParticipant);
@@ -262,6 +288,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
   const hasReachedLimit = currentCount >= 15;
   // Backend returns 'surveyUnlocked' field (camelCase)
   const surveyUnlocked = participant.surveyUnlocked === true || participant.survey_unlocked === true;
+
+  // Handle survey completion
+  const handleSurveyComplete = (characterId, characterName) => {
+    // Mark this character's survey as completed
+    setCompletedSurveys(prev => new Set([...prev, String(characterId)]));
+    console.log(`Survey completed for character ${characterId} (${characterName})`);
+    // Optionally reload participant data to get updated survey status
+    loadParticipant();
+  };
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -443,6 +478,15 @@ export default function ChatPage({ user, onNavigateToSurvey }) {
           </Button>
         </Box>
       </Paper>
+
+      {/* Character Interaction Survey Dialog */}
+      <CharacterInteractionSurvey
+        characterId={surveyCharacterId}
+        characterName={surveyCharacterName}
+        open={surveyOpen}
+        onClose={() => setSurveyOpen(false)}
+        onComplete={handleSurveyComplete}
+      />
     </Box>
   );
 }
