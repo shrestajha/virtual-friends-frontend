@@ -97,21 +97,20 @@ export default function LoginForm({ onSuccess, onSurveyRequired, initialMode = "
         if (res.characters && Array.isArray(res.characters)) {
           localStorage.setItem("assignedCharacters", JSON.stringify(res.characters));
         }
-        // Check if survey is required after registration
+        
+        // Always auto-login after registration to get token and authenticate user
+        // This ensures the user is authenticated and can proceed immediately
+        await login(email, password);
+        setError("");
+        
+        // Check if survey is required from registration response
+        // Note: onSuccess will also check survey_required via /auth/me, but we check here
+        // to potentially skip that extra API call
         if (res.survey_required === true && onSurveyRequired) {
-          setError("");
           onSurveyRequired();
-          return;
-        }
-        // If your backend returns character info:
-        if (res.character) {
-          setAssignedCharacter(res.character);
-        } else if (res.characters && Array.isArray(res.characters) && res.characters.length > 0) {
-          // If backend returns multiple characters, show the first one
-          setAssignedCharacter(res.characters[0]);
         } else {
-          // fallback — auto-login if no character in response
-          await login(email, password);
+          // No survey required (or not specified), proceed to chat
+          // onSuccess will verify survey status via /auth/me
           onSuccess();
         }
       }
