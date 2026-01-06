@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { me, logout } from "./api";
 import LoginForm from "./LoginForm";
 import ForgotPassword from "./ForgotPassword";
+import VerifyResetCode from "./VerifyResetCode";
 import ResetPassword from "./ResetPassword";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
