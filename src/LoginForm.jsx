@@ -212,9 +212,16 @@ export default function LoginForm({ onSuccess, onSurveyRequired, initialMode = "
               href="/forgot-password"
               onClick={(e) => {
                 e.preventDefault();
-                // Use pushState for client-side navigation
-                window.history.pushState({}, "", "/forgot-password");
-                window.dispatchEvent(new PopStateEvent("popstate"));
+                // Use global navigation function if available
+                if (window.__navigateTo) {
+                  window.__navigateTo("/forgot-password");
+                } else {
+                  // Fallback: pushState and dispatch custom navigation event
+                  window.history.pushState({}, "", "/forgot-password");
+                  window.dispatchEvent(new Event("navigation"));
+                  // Also try popstate as fallback
+                  window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+                }
               }}
               style={{ fontSize: "14px", color: "var(--accent)", textDecoration: "none", cursor: "pointer" }}
             >

@@ -125,12 +125,19 @@ export default function App() {
       updateViewFromPath();
     };
 
+    // Listen for custom navigation events
+    const handleNavigation = () => {
+      updateViewFromPath();
+    };
+
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("navigation", handleNavigation);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("navigation", handleNavigation);
     };
   }, [user]);
 
@@ -330,6 +337,7 @@ export default function App() {
   // Handle navigation
   const navigateTo = (path) => {
     window.history.pushState({}, "", path);
+    // Directly update view based on path
     const pathname = window.location.pathname;
     if (pathname === "/forgot-password") {
       setView("forgot-password");
@@ -345,6 +353,14 @@ export default function App() {
       setView("start");
     }
   };
+
+  // Expose navigation function globally for components that need it
+  React.useEffect(() => {
+    window.__navigateTo = navigateTo;
+    return () => {
+      delete window.__navigateTo;
+    };
+  }, []);
 
   // Show forgot password page
   if (view === "forgot-password") {
