@@ -30,7 +30,7 @@ export default function App() {
       const path = window.location.pathname;
       
       // If user is logged in and tries to access auth pages, redirect to chat
-      if (user && (path === "/login" || path === "/signup" || path === "/forgot-password" || path === "/reset-password")) {
+      if (user && (path === "/login" || path === "/signup" || path === "/forgot-password" || path === "/verify-code" || path === "/reset-password")) {
         window.history.pushState({}, "", "/chat");
         setView("chat");
         return;
@@ -93,6 +93,8 @@ export default function App() {
       if (!user) {
         if (path === "/forgot-password") {
           setView("forgot-password");
+        } else if (path === "/verify-code") {
+          setView("verify-code");
         } else if (path === "/reset-password") {
           setView("reset-password");
         } else if (path === "/login") {
@@ -140,12 +142,14 @@ export default function App() {
   useEffect(() => {
     // Check initial route first
     const path = window.location.pathname;
-    const authPages = ["/forgot-password", "/reset-password", "/login", "/signup"];
+    const authPages = ["/forgot-password", "/verify-code", "/reset-password", "/login", "/signup"];
     
     if (authPages.includes(path)) {
       // Set view based on path
       if (path === "/forgot-password") {
         setView("forgot-password");
+      } else if (path === "/verify-code") {
+        setView("verify-code");
       } else if (path === "/reset-password") {
         setView("reset-password");
       } else if (path === "/login") {
@@ -329,6 +333,8 @@ export default function App() {
     const pathname = window.location.pathname;
     if (pathname === "/forgot-password") {
       setView("forgot-password");
+    } else if (pathname === "/verify-code") {
+      setView("verify-code");
     } else if (pathname === "/reset-password") {
       setView("reset-password");
     } else if (pathname === "/login") {
@@ -354,23 +360,41 @@ export default function App() {
     );
   }
 
+  // Show verify reset code page
+  if (view === "verify-code") {
+    const state = window.history.state;
+    const email = state?.email || "";
+    return (
+      <div className="container center">
+        <VerifyResetCode
+          email={email}
+          onBack={() => {
+            navigateTo("/forgot-password");
+            setLoginMessage("");
+          }}
+        />
+      </div>
+    );
+  }
+
   // Show reset password page
   if (view === "reset-password") {
-    const token = getTokenFromURL();
-    if (!token) {
+    const state = window.history.state;
+    const email = state?.email || "";
+    if (!email) {
       return (
         <div className="container center">
           <div className="panel" style={{ padding: 40, maxWidth: 480, margin: "40px auto", textAlign: "center" }}>
             <h2 style={{ marginBottom: 16, fontSize: "24px", fontWeight: 600 }}>Invalid Reset Link</h2>
             <p style={{ marginBottom: 24, color: "var(--muted)" }}>
-              The reset link is invalid or has expired.
+              Please verify your code first.
             </p>
             <button
               className="button"
-              onClick={() => navigateTo("/login")}
+              onClick={() => navigateTo("/forgot-password")}
               style={{ width: "100%" }}
             >
-              Back to Login
+              Back to Forgot Password
             </button>
           </div>
         </div>
@@ -379,7 +403,7 @@ export default function App() {
 
     return (
       <div className="container center">
-        <ResetPassword token={token} />
+        <ResetPassword email={email} />
       </div>
     );
   }

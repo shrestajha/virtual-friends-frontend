@@ -181,6 +181,7 @@ export const storeAssignedCharacters = (characters) => {
 
 // Password reset APIs
 export const forgotPassword = async (email) => {
+  console.log(`[API] POST ${API_BASE}/auth/forgot-password`, { email });
   const res = await fetch(`${API_BASE}/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -188,22 +189,46 @@ export const forgotPassword = async (email) => {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Forgot password failed: ${text}`);
+    console.error(`[API Error] POST /auth/forgot-password - ${res.status}:`, text);
+    throw new Error(`HTTP ${res.status} — ${text}`);
   }
-  return res.json();
+  const data = await res.json();
+  console.log(`[API Success] POST /auth/forgot-password:`, data);
+  return data;
 };
 
-export const resetPassword = async (token, newPassword) => {
-  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+export const verifyResetCode = async (email, code) => {
+  console.log(`[API] POST ${API_BASE}/auth/verify-reset-code`, { email, code });
+  const res = await fetch(`${API_BASE}/auth/verify-reset-code`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, new_password: newPassword }),
+    body: JSON.stringify({ email, code }),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Reset password failed: ${text}`);
+    console.error(`[API Error] POST /auth/verify-reset-code - ${res.status}:`, text);
+    throw new Error(`HTTP ${res.status} — ${text}`);
   }
-  return res.json();
+  const data = await res.json();
+  console.log(`[API Success] POST /auth/verify-reset-code:`, data);
+  return data;
+};
+
+export const resetPassword = async (email, newPassword) => {
+  console.log(`[API] POST ${API_BASE}/auth/reset-password`, { email });
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[API Error] POST /auth/reset-password - ${res.status}:`, text);
+    throw new Error(`HTTP ${res.status} — ${text}`);
+  }
+  const data = await res.json();
+  console.log(`[API Success] POST /auth/reset-password:`, data);
+  return data;
 };
 
 // Participant APIs

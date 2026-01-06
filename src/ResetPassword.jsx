@@ -1,13 +1,22 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { resetPassword } from "./api";
 
-export default function ResetPassword({ token }) {
+export default function ResetPassword({ email: emailProp }) {
+  const [email, setEmail] = useState(emailProp || "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Get email from route state if not provided as prop
+  useEffect(() => {
+    const state = window.history.state;
+    if (state && state.email && !email) {
+      setEmail(state.email);
+    }
+  }, [email]);
 
   // Password validation for reset (different from signup)
   const passwordValidation = useMemo(() => {
@@ -54,14 +63,26 @@ export default function ResetPassword({ token }) {
       return;
     }
 
+    if (!email) {
+      setError("Email is required. Please go back and verify your code.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await resetPassword(token, newPassword);
+      await resetPassword(email, newPassword);
       // Redirect to login with success message
-      const message = encodeURIComponent("Password reset successfully.");
-      window.location.href = `/login?message=${message}`;
+      const message = encodeURIComponent("Password reset successfully. You can now log in.");
+      window.history.pushState({}, "", `/login?message=${message}`);
+      window.dispatchEvent(new PopStateEvent('popstate'));
     } catch (err) {
-      setError(err.message || "Failed to reset password. The link may have expired.");
+      const errorMessage = err.message || "Failed to reset password.";
+      // Handle rate limiting
+      if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        setError("Too many requests. Please wait a moment before trying again.");
+      } else {
+        setError(errorMessage);
+      }
       setLoading(false);
     }
   };

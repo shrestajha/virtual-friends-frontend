@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { forgotPassword } from "./api";
 
 export default function ForgotPassword({ onBack }) {
@@ -6,6 +6,15 @@ export default function ForgotPassword({ onBack }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,8 +25,22 @@ export default function ForgotPassword({ onBack }) {
     try {
       await forgotPassword(email);
       setSuccess(true);
+      setCooldown(30); // 30-second cooldown
+      
+      // Navigate to verify code page with email in state
+      setTimeout(() => {
+        window.history.pushState({ email }, "", "/verify-code");
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, 1500);
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      const errorMessage = err.message || "Something went wrong";
+      // Handle rate limiting
+      if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+        setError("Too many requests. Please wait a moment before trying again.");
+        setCooldown(30);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -39,19 +62,11 @@ export default function ForgotPassword({ onBack }) {
             marginBottom: "24px",
             border: "1px solid #a7f3d0"
           }}>
-            If this email exists, a reset link has been sent.
+            If an account exists, a reset code has been sent.
           </div>
-          <a
-            href="/login"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = "/login";
-            }}
-            className="button"
-            style={{ width: "100%", display: "block", textAlign: "center", textDecoration: "none" }}
-          >
-            Back to Login
-          </a>
+          <div className="hint" style={{ marginTop: 16, textAlign: "center" }}>
+            Redirecting to verification page...
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
@@ -72,6 +87,7 @@ export default function ForgotPassword({ onBack }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={cooldown > 0}
               style={{ width: "100%" }}
             />
           </div>
@@ -80,10 +96,16 @@ export default function ForgotPassword({ onBack }) {
             type="submit"
             className="button"
             style={{ width: "100%" }}
-            disabled={loading}
+            disabled={loading || cooldown > 0}
           >
-            {loading ? "Sending..." : "Send Reset Link"}
+            {loading ? "Sending..." : cooldown > 0 ? `Resend in ${cooldown}s` : "Send Reset Code"}
           </button>
+
+          {cooldown > 0 && (
+            <div className="hint" style={{ marginTop: "12px", textAlign: "center", color: "#6b7280" }}>
+              Please wait {cooldown} second{cooldown !== 1 ? 's' : ''} before requesting another code.
+            </div>
+          )}
         </form>
       )}
 
@@ -99,7 +121,8 @@ export default function ForgotPassword({ onBack }) {
           href="/login"
           onClick={(e) => {
             e.preventDefault();
-            window.location.href = "/login";
+            window.history.pushState({}, "", "/login");
+            window.dispatchEvent(new PopStateEvent('popstate'));
           }}
           className="link"
         >
