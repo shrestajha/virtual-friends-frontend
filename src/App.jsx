@@ -400,10 +400,19 @@ export default function App() {
       delete window.__navigateTo;
       delete window.__updateViewFromPath;
     };
-  }, [user]);
+  }, [user, navigateTo]);
 
-  // Debug: Log current view state
-  console.log("[App] Current view:", view, "pathname:", window.location.pathname, "user:", user);
+  // Check for message in URL params (for password reset success)
+  // MUST be before any conditional returns to avoid React hooks error
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get("message");
+    if (message) {
+      setLoginMessage(decodeURIComponent(message));
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // Show forgot password page
   if (view === "forgot-password") {
@@ -467,17 +476,6 @@ export default function App() {
       </div>
     );
   }
-
-  // Check for message in URL params (for password reset success)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const message = params.get("message");
-    if (message) {
-      setLoginMessage(decodeURIComponent(message));
-      // Clean URL
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
 
   // Show login/signup form
   if (view === "start" || view === "login" || view === "signup") {
