@@ -28,9 +28,11 @@ export default function App() {
   useEffect(() => {
     const updateViewFromPath = () => {
       const path = window.location.pathname;
+      console.log("[App] updateViewFromPath called, path:", path, "user:", user);
       
       // If user is logged in and tries to access auth pages, redirect to chat
-      if (user && (path === "/login" || path === "/signup" || path === "/forgot-password" || path === "/verify-code" || path === "/reset-password")) {
+      // BUT allow forgot-password, verify-code, and reset-password even when logged in
+      if (user && (path === "/login" || path === "/signup")) {
         window.history.pushState({}, "", "/chat");
         setView("chat");
         return;
@@ -92,22 +94,32 @@ export default function App() {
       // Handle routing for auth pages (only if not logged in)
       if (!user) {
         if (path === "/forgot-password") {
+          console.log("[App] Setting view to forgot-password");
           setView("forgot-password");
+          return;
         } else if (path === "/verify-code") {
+          console.log("[App] Setting view to verify-code");
           setView("verify-code");
+          return;
         } else if (path === "/reset-password") {
+          console.log("[App] Setting view to reset-password");
           setView("reset-password");
+          return;
         } else if (path === "/login") {
           setView("login");
+          return;
         } else if (path === "/signup") {
           setView("signup");
+          return;
         } else if (path === "/") {
           // Default to start (which shows login/signup)
           setView("start");
+          return;
         } else {
           // Redirect unknown routes to login
           window.history.pushState({}, "", "/");
           setView("start");
+          return;
         }
       }
     };
@@ -336,14 +348,19 @@ export default function App() {
 
   // Handle navigation
   const navigateTo = (path) => {
+    console.log("[App] navigateTo called with path:", path);
     window.history.pushState({}, "", path);
     // Directly update view based on path
     const pathname = window.location.pathname;
+    console.log("[App] Current pathname:", pathname);
     if (pathname === "/forgot-password") {
+      console.log("[App] Setting view to forgot-password via navigateTo");
       setView("forgot-password");
     } else if (pathname === "/verify-code") {
+      console.log("[App] Setting view to verify-code via navigateTo");
       setView("verify-code");
     } else if (pathname === "/reset-password") {
+      console.log("[App] Setting view to reset-password via navigateTo");
       setView("reset-password");
     } else if (pathname === "/login") {
       setView("login");
@@ -357,15 +374,42 @@ export default function App() {
   // Expose navigation function globally for components that need it
   React.useEffect(() => {
     window.__navigateTo = navigateTo;
+    // Also expose updateViewFromPath for manual triggering
+    window.__updateViewFromPath = () => {
+      const path = window.location.pathname;
+      console.log("[App] Manual updateViewFromPath, path:", path, "user:", user);
+      
+      if (!user) {
+        if (path === "/forgot-password") {
+          console.log("[App] Manually setting view to forgot-password");
+          setView("forgot-password");
+        } else if (path === "/verify-code") {
+          setView("verify-code");
+        } else if (path === "/reset-password") {
+          setView("reset-password");
+        } else if (path === "/login") {
+          setView("login");
+        } else if (path === "/signup") {
+          setView("signup");
+        } else if (path === "/") {
+          setView("start");
+        }
+      }
+    };
     return () => {
       delete window.__navigateTo;
+      delete window.__updateViewFromPath;
     };
-  }, []);
+  }, [user]);
+
+  // Debug: Log current view state
+  console.log("[App] Current view:", view, "pathname:", window.location.pathname, "user:", user);
 
   // Show forgot password page
   if (view === "forgot-password") {
+    console.log("[App] Rendering ForgotPassword component");
     return (
-      <div className="container center">
+      <div className="container center" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
         <ForgotPassword
           onBack={() => {
             navigateTo("/login");

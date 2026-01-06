@@ -212,11 +212,18 @@ export default function LoginForm({ onSuccess, onSurveyRequired, initialMode = "
               href="/forgot-password"
               onClick={(e) => {
                 e.preventDefault();
+                console.log("[LoginForm] Forgot password clicked");
                 // Use global navigation function if available
                 if (window.__navigateTo) {
+                  console.log("[LoginForm] Using __navigateTo");
                   window.__navigateTo("/forgot-password");
+                } else if (window.__updateViewFromPath) {
+                  console.log("[LoginForm] Using __updateViewFromPath");
+                  window.history.pushState({}, "", "/forgot-password");
+                  window.__updateViewFromPath();
                 } else {
                   // Fallback: pushState and dispatch custom navigation event
+                  console.log("[LoginForm] Using fallback navigation");
                   window.history.pushState({}, "", "/forgot-password");
                   window.dispatchEvent(new Event("navigation"));
                   // Also try popstate as fallback
