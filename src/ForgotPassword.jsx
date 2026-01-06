@@ -34,12 +34,26 @@ export default function ForgotPassword({ onBack }) {
       }, 1500);
     } catch (err) {
       const errorMessage = err.message || "Something went wrong";
-      // Handle rate limiting
-      if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      console.error("Forgot password error:", err);
+      
+      // Handle specific error cases
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS') || errorMessage.includes('network')) {
+        setError("Network error: Unable to connect to the server. Please check your internet connection or try again later.");
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
         setError("Too many requests. Please wait a moment before trying again.");
         setCooldown(30);
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        setError("Server error: The server encountered an issue. Please try again later or contact support.");
+      } else if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+        setError("Authentication error. Please try again.");
+      } else if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        setError("The requested service was not found. Please contact support.");
       } else {
-        setError(errorMessage);
+        // Show a more user-friendly message for other errors
+        const userFriendlyMessage = errorMessage.includes('HTTP') 
+          ? "An error occurred. Please try again later." 
+          : errorMessage;
+        setError(userFriendlyMessage);
       }
     } finally {
       setLoading(false);

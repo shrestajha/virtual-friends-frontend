@@ -182,19 +182,30 @@ export const storeAssignedCharacters = (characters) => {
 // Password reset APIs
 export const forgotPassword = async (email) => {
   console.log(`[API] POST ${API_BASE}/auth/forgot-password`, { email });
-  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`[API Error] POST /auth/forgot-password - ${res.status}:`, text);
-    throw new Error(`HTTP ${res.status} — ${text}`);
+  try {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[API Error] POST /auth/forgot-password - ${res.status}:`, text);
+      throw new Error(`HTTP ${res.status} — ${text}`);
+    }
+    
+    const data = await res.json();
+    console.log(`[API Success] POST /auth/forgot-password:`, data);
+    return data;
+  } catch (error) {
+    // Handle network errors, CORS errors, etc.
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error(`[API] Network error:`, error);
+      throw new Error('Failed to fetch - Network error or CORS issue. Please check your connection and ensure the backend is configured correctly.');
+    }
+    throw error;
   }
-  const data = await res.json();
-  console.log(`[API Success] POST /auth/forgot-password:`, data);
-  return data;
 };
 
 export const verifyResetCode = async (email, code) => {
