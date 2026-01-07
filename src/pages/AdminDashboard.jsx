@@ -97,9 +97,12 @@ const calculateSurveyAverage = (surveyData) => {
 const ChatRow = ({ chat, type, onViewSurvey }) => {
   const [expanded, setExpanded] = useState(false);
   const [surveyExpanded, setSurveyExpanded] = useState(false);
+  const [signupSurveyExpanded, setSignupSurveyExpanded] = useState(false);
   const messages = chat.messages || [];
   const surveyData = chat.interaction_survey_data;
   const surveyCompleted = chat.interaction_survey_completed === true;
+  const signupSurveyData = chat.signup_survey_data;
+  const signupSurveyCompleted = chat.signup_survey_completed === true;
 
   return (
     <>
@@ -126,39 +129,91 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
         </TableCell>
         <TableCell>{formatDate(type === 'user' ? chat.last_message_at : chat.last_message_at)}</TableCell>
         <TableCell>
-          {surveyCompleted && surveyData ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {signupSurveyCompleted && signupSurveyData && (
               <Chip
-                label={`Survey (Avg: ${calculateSurveyAverage(surveyData)}/6)`}
-                color="success"
+                label="Signup Survey ✓"
+                color="info"
+                size="small"
+                onClick={() => setSignupSurveyExpanded(!signupSurveyExpanded)}
+                sx={{ cursor: 'pointer' }}
+              />
+            )}
+            {surveyCompleted && surveyData ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={`Interaction (Avg: ${calculateSurveyAverage(surveyData)}/6)`}
+                  color="success"
+                  size="small"
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<AssignmentIcon />}
+                  onClick={() => {
+                    if (onViewSurvey) {
+                      onViewSurvey(chat, surveyData);
+                    } else {
+                      setSurveyExpanded(!surveyExpanded);
+                    }
+                  }}
+                >
+                  View
+                </Button>
+              </Box>
+            ) : (
+              <Chip
+                label={chat.survey_unlocked ? 'Unlocked' : 'No Survey'}
+                color={chat.survey_unlocked ? 'warning' : 'default'}
                 size="small"
               />
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<AssignmentIcon />}
-                onClick={() => {
-                  if (onViewSurvey) {
-                    onViewSurvey(chat, surveyData);
-                  } else {
-                    setSurveyExpanded(!surveyExpanded);
-                  }
-                }}
-              >
-                View
-              </Button>
-            </Box>
-          ) : (
-            <Chip
-              label={chat.survey_unlocked ? 'Unlocked' : 'No Survey'}
-              color={chat.survey_unlocked ? 'warning' : 'default'}
-              size="small"
-            />
-          )}
+            )}
+          </Box>
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell colSpan={7} sx={{ py: 0, borderBottom: expanded || surveyExpanded ? 1 : 0 }}>
+        <TableCell colSpan={7} sx={{ py: 0, borderBottom: expanded || surveyExpanded || signupSurveyExpanded ? 1 : 0 }}>
+          {/* Signup Survey Display */}
+          {signupSurveyData && (
+            <Collapse in={signupSurveyExpanded} timeout="auto" unmountOnExit>
+              <Box sx={{ p: 2, bgcolor: '#e3f2fd' }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Signup Survey Results
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Completed: {formatDate(signupSurveyData.completed_at)}
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Question</strong></TableCell>
+                        <TableCell><strong>Response</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>How often do you use AI chatbots?</TableCell>
+                        <TableCell>{signupSurveyData.q1_ai_chatbot_frequency}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Have you chatted with a virtual character in the past 6 months?</TableCell>
+                        <TableCell>{signupSurveyData.q2_virtual_character_experience}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>To what extent do you think AI chatbots can reason and make decisions?</TableCell>
+                        <TableCell>{signupSurveyData.q3_ai_reasoning_belief}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>To what extent do you think AI chatbots can empathize and express emotions?</TableCell>
+                        <TableCell>{signupSurveyData.q4_ai_empathy_belief}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            </Collapse>
+          )}
           <Collapse in={expanded} timeout="auto" unmountOnExit>
             <Box sx={{ p: 2, bgcolor: '#f5f5f5' }}>
               <Typography variant="subtitle2" gutterBottom>
@@ -170,7 +225,11 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
                 </Typography>
               ) : (
                 <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-                  {messages.map((msg, idx) => (
+                  {[...messages].sort((a, b) => {
+                    const timeA = new Date(a.created_at || a.timestamp || 0);
+                    const timeB = new Date(b.created_at || b.timestamp || 0);
+                    return timeA - timeB;
+                  }).map((msg, idx) => (
                     <Box
                       key={idx}
                       sx={{
