@@ -34,6 +34,18 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
+// Allowed admin emails - only these two emails can have admin access
+const ALLOWED_ADMIN_EMAILS = [
+  'shresta.jha@uga.edu',
+  'elham.yazdani@uga.edu'
+];
+
+// Helper function to check if email is allowed for admin access
+const isAllowedAdminEmail = (email) => {
+  if (!email) return false;
+  return ALLOWED_ADMIN_EMAILS.includes(email.toLowerCase().trim());
+};
+
 // Helper function to get EI/CI level color
 const getLevelColor = (level) => {
   if (level >= 8) return '#4caf50'; // Green
@@ -405,6 +417,14 @@ export default function AdminDashboard({ user }) {
       return;
     }
 
+    const email = newAdminEmail.trim().toLowerCase();
+    
+    // Frontend validation: Only allow specific emails to be made admin
+    if (!isAllowedAdminEmail(email)) {
+      setAdminError(`Admin access is restricted. Only ${ALLOWED_ADMIN_EMAILS.join(' and ')} can have admin access.`);
+      return;
+    }
+
     try {
       setAdminLoading(true);
       setAdminError(null);
@@ -421,6 +441,8 @@ export default function AdminDashboard({ user }) {
       const errorMessage = err.message || 'Failed to make user admin';
       if (errorMessage.includes('Maximum') || errorMessage.includes('2 admins')) {
         setAdminError('Maximum of 2 admins allowed');
+      } else if (errorMessage.includes('not authorized') || errorMessage.includes('restricted')) {
+        setAdminError(errorMessage);
       } else {
         setAdminError(errorMessage);
       }
@@ -570,13 +592,17 @@ export default function AdminDashboard({ user }) {
             startIcon={<AdminPanelSettingsIcon />}
             onClick={() => setAdminDialogOpen(true)}
             disabled={adminUsers.length >= 2}
+            title={adminUsers.length >= 2 ? "Maximum of 2 admins allowed" : "Add admin (restricted to specific emails)"}
           >
             Make Admin
           </Button>
         </Box>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Admin access is restricted to: {ALLOWED_ADMIN_EMAILS.join(' and ')}
+        </Alert>
         {adminUsers.length >= 2 && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Maximum of 2 admins allowed
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Maximum of 2 admins allowed. Both allowed admin emails are already admins.
           </Alert>
         )}
         {adminError && (
@@ -736,6 +762,9 @@ export default function AdminDashboard({ user }) {
       <Dialog open={adminDialogOpen} onClose={() => setAdminDialogOpen(false)}>
         <DialogTitle>Make User Admin</DialogTitle>
         <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Only these emails can be granted admin access: {ALLOWED_ADMIN_EMAILS.join(', ')}
+          </Alert>
           <TextField
             autoFocus
             margin="dense"
@@ -745,6 +774,8 @@ export default function AdminDashboard({ user }) {
             variant="outlined"
             value={newAdminEmail}
             onChange={(e) => setNewAdminEmail(e.target.value)}
+            placeholder="Enter email address"
+            helperText="Only allowed admin emails can be granted admin access"
             sx={{ mt: 1 }}
           />
           {adminError && (
