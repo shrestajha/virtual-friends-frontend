@@ -14,6 +14,21 @@ import AdminConversationView from "./pages/AdminConversationView";
 
 const MAX_MESSAGES = 15;
 
+// Allowed admin emails - frontend check until backend is fixed
+const ALLOWED_ADMIN_EMAILS = [
+  'shresta.jha@uga.edu',
+  'elham.yazdani@uga.edu'
+];
+
+// Helper to check if user should have admin access
+const hasAdminAccess = (user) => {
+  if (!user || !user.email) return false;
+  // Check backend is_admin flag first
+  if (user.is_admin === true) return true;
+  // Fallback: check if email is in allowed list (temporary until backend is fixed)
+  return ALLOWED_ADMIN_EMAILS.includes(user.email.toLowerCase().trim());
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("start"); // 'start' | 'chat' | 'survey'
@@ -44,7 +59,7 @@ export default function App() {
         if (path.startsWith("/admin/conversations/")) {
           const match = path.match(/^\/admin\/conversations\/(\d+)$/);
           if (match) {
-            if (!user.is_admin) {
+            if (!hasAdminAccess(user)) {
               window.history.pushState({}, "", "/chat");
               setView("chat");
               return;
@@ -53,7 +68,7 @@ export default function App() {
             return;
           }
         } else if (path === "/admin") {
-          if (!user.is_admin) {
+          if (!hasAdminAccess(user)) {
             window.history.pushState({}, "", "/chat");
             setView("chat");
             return;
@@ -212,14 +227,21 @@ export default function App() {
         // Determine view based on path
         if (path.startsWith("/admin/conversations/")) {
           const match = path.match(/^\/admin\/conversations\/(\d+)$/);
-          if (match && u.is_admin) {
+          if (match && hasAdminAccess(u)) {
             setView("admin-conversation");
           } else {
             setView("chat");
             window.history.pushState({}, "", "/chat");
           }
-        } else if (path === "/admin" && u.is_admin) {
-          setView("admin");
+        } else if (path === "/admin") {
+          // Check admin access using helper function
+          const userWithAdminCheck = { ...u, is_admin: hasAdminAccess(u) ? true : u.is_admin };
+          if (hasAdminAccess(userWithAdminCheck)) {
+            setView("admin");
+          } else {
+            setView("chat");
+            window.history.pushState({}, "", "/chat");
+          }
         } else {
         setView("chat");
           if (path !== "/chat") {
@@ -573,7 +595,7 @@ export default function App() {
   // Survey is now handled in ChatPage component (CharacterInteractionSurvey)
 
   // Show admin dashboard
-  if (view === "admin" && user?.is_admin) {
+  if (view === "admin" && hasAdminAccess(user)) {
     return (
       <div className="container">
         <div className="header">
@@ -616,7 +638,7 @@ export default function App() {
   }
 
   // Show admin conversation view
-  if (view === "admin-conversation" && user?.is_admin) {
+  if (view === "admin-conversation" && hasAdminAccess(user)) {
     const match = window.location.pathname.match(/^\/admin\/conversations\/(\d+)$/);
     const conversationId = match ? parseInt(match[1]) : null;
     
@@ -653,7 +675,7 @@ export default function App() {
           <div className="brand" style={{ marginRight: "auto" }}>
             Welcome, {user?.email || "User"}
           </div>
-          {user?.is_admin && (
+          {hasAdminAccess(user) && (
             <button
               className="button small"
               onClick={() => {
