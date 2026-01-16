@@ -20,7 +20,7 @@ export default function ChatPage({ user }) {
   const [surveyCharacterName, setSurveyCharacterName] = useState('');
   const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
 
-  // Check if all characters have 15 interactions and show survey for the first one that needs it
+  // Check if any character has reached 15 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
     if (!participantData || !participantData.characters) {
       console.log('checkAndShowSurvey: No participant data or characters');
@@ -35,38 +35,28 @@ export default function ChatPage({ user }) {
       console.log(`Character ${char.name} (${char.id}): ${char.interactions || 0} interactions`);
     });
     
-    // Check if all characters have reached 15 interactions
-    const allComplete = characters.every(char => {
+    // Find the first character that has reached 15 interactions and hasn't completed its survey
+    const characterNeedingSurvey = characters.find(char => {
       const interactions = char.interactions || 0;
-      return interactions >= 15;
+      const charId = String(char.id);
+      const isCompleted = completedSurveys.has(charId);
+      const hasEnoughInteractions = interactions >= 15;
+      
+      console.log(`Character ${char.name} (${charId}): ${interactions} interactions, survey completed? ${isCompleted}`);
+      
+      return hasEnoughInteractions && !isCompleted;
     });
     
-    console.log('checkAndShowSurvey: All characters complete?', allComplete);
-    console.log('checkAndShowSurvey: Completed surveys:', Array.from(completedSurveys));
-    
-    if (allComplete && characters.length > 0) {
-      // Find the first character that hasn't had its survey completed
-      const characterNeedingSurvey = characters.find(char => {
-        const charId = String(char.id);
-        const isCompleted = completedSurveys.has(charId);
-        console.log(`Character ${char.name} (${charId}): survey completed?`, isCompleted);
-        return !isCompleted;
-      });
+    if (characterNeedingSurvey) {
+      const charId = String(characterNeedingSurvey.id);
+      const charName = characterNeedingSurvey.name || 'this character';
       
-      if (characterNeedingSurvey) {
-        const charId = String(characterNeedingSurvey.id);
-        const charName = characterNeedingSurvey.name || 'this character';
-        
-        console.log('All characters complete! Showing survey for:', charName, '(ID:', charId, ')');
-        setSurveyCharacterId(charId);
-        setSurveyCharacterName(charName);
-        setSurveyOpen(true);
-      } else {
-        console.log('All characters complete but all surveys already completed');
-      }
+      console.log('Character has 15 interactions! Showing survey for:', charName, '(ID:', charId, ')');
+      setSurveyCharacterId(charId);
+      setSurveyCharacterName(charName);
+      setSurveyOpen(true);
     } else {
-      const incompleteCount = characters.filter(char => (char.interactions || 0) < 15).length;
-      console.log(`Not all characters complete. ${incompleteCount} characters still need interactions.`);
+      console.log('No character needs survey yet (either not at 15 interactions or already completed)');
     }
   }, [completedSurveys]);
 

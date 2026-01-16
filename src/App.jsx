@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { me, logout } from "./api";
+import { me, logout, getConsentStatus } from "./api";
 import LoginForm from "./LoginForm";
 import ForgotPassword from "./ForgotPassword";
 import VerifyResetCode from "./VerifyResetCode";
 import ResetPassword from "./ResetPassword";
 import CharacterSwitcher from "./components/CharacterSwitcher";
 import CharacterProfile from "./components/CharacterProfile";
+import ConsentForm from "./components/ConsentForm";
 import SignupSurvey from "./components/SignupSurvey";
 import ChatBox from "./components/ChatBox";
 import ChatPage from "./pages/ChatPage";
@@ -31,7 +32,7 @@ const hasAdminAccess = (user) => {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("start"); // 'start' | 'chat' | 'survey'
+  const [view, setView] = useState("start"); // 'start' | 'chat' | 'survey' | 'consent' | 'signup-survey'
   const [characters, setCharacters] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loadingCharacters, setLoadingCharacters] = useState(false);
@@ -39,6 +40,7 @@ export default function App() {
   const [messageCountsPerCharacter, setMessageCountsPerCharacter] = useState({});
   const [error, setError] = useState(null);
   const [loginMessage, setLoginMessage] = useState("");
+  const [consentAccepted, setConsentAccepted] = useState(null); // null = not checked, true = accepted, false = not accepted
 
   // Handle URL-based routing when pathname changes
   useEffect(() => {
@@ -76,6 +78,12 @@ export default function App() {
           setView("admin");
           return;
         } else if (path === "/chat" || path === "/") {
+          // Check consent first
+          if (consentAccepted === false) {
+            window.history.pushState({}, "", "/consent");
+            setView("consent");
+            return;
+          }
           // Check if survey is required before allowing chat access
           if (user.survey_required === true) {
             window.history.pushState({}, "", "/signup-survey");
@@ -87,12 +95,42 @@ export default function App() {
         }
       }
 
+      // Handle consent route (requires authentication)
+      if (path === "/consent") {
+        if (!user) {
+          // Not logged in, redirect to login
+          window.history.pushState({}, "", "/login");
+          setView("login");
+          return;
+        }
+        // Check if consent is already accepted
+        if (consentAccepted === true) {
+          // Consent already accepted, check survey
+          if (user.survey_required === true) {
+            window.history.pushState({}, "", "/signup-survey");
+            setView("signup-survey");
+          } else {
+            window.history.pushState({}, "", "/chat");
+            setView("chat");
+          }
+          return;
+        }
+        setView("consent");
+        return;
+      }
+
       // Handle signup survey route (requires authentication)
       if (path === "/signup-survey") {
         if (!user) {
           // Not logged in, redirect to login
           window.history.pushState({}, "", "/login");
           setView("login");
+          return;
+        }
+        // Check consent first
+        if (consentAccepted === false) {
+          window.history.pushState({}, "", "/consent");
+          setView("consent");
           return;
         }
         // Check if survey is actually required
@@ -167,7 +205,7 @@ export default function App() {
       window.removeEventListener("hashchange", handleHashChange);
       window.removeEventListener("navigation", handleNavigation);
     };
-  }, [user]);
+  }, [user, consentAccepted]);
 
   // Survey status is now checked in ChatPage component
   // This effect is no longer needed
@@ -214,6 +252,27 @@ export default function App() {
         }
         setMessageCountsPerCharacter(counts);
         console.log('Initialized message counts from /auth/me:', counts);
+        
+        // Check consent status
+        let consentStatus = false;
+        try {
+          // Try to get consent status from backend
+          const consentData = await getConsentStatus();
+          consentStatus = consentData.consent_accepted === true;
+        } catch (err) {
+          console.log('Could not fetch consent status from backend, checking localStorage:', err);
+          // Fallback to localStorage
+          const storedConsent = localStorage.getItem('consent_accepted');
+          consentStatus = storedConsent === 'true';
+        }
+        setConsentAccepted(consentStatus);
+        
+        // Check consent first
+        if (!consentStatus) {
+          setView("consent");
+          window.history.pushState({}, "", "/consent");
+          return;
+        }
         
         // Check if signup survey is required
         if (u.survey_required === true) {
@@ -538,6 +597,26 @@ export default function App() {
             setMessageCountsPerCharacter(counts);
             console.log('Initialized message counts from /auth/me:', counts);
             
+            // Check consent status first
+            let consentStatus = false;
+            try {
+              const consentData = await getConsentStatus();
+              consentStatus = consentData.consent_accepted === true;
+            } catch (err) {
+              console.log('Could not fetch consent status, checking localStorage:', err);
+              const storedConsent = localStorage.getItem('consent_accepted');
+              consentStatus = storedConsent === 'true';
+            }
+            setConsentAccepted(consentStatus);
+            
+            // Check consent first
+            if (!consentStatus) {
+              setView("consent");
+              window.history.pushState({}, "", "/consent");
+              setLoginMessage("");
+              return;
+            }
+            
             // Check if signup survey is required
             if (u.survey_required === true) {
               setView("signup-survey");
@@ -558,12 +637,73 @@ export default function App() {
             const u = await me();
             setUser(u);
             localStorage.setItem("user", JSON.stringify(u));
+            
+            // Check consent status first
+            let consentStatus = false;
+            try {
+              const consentData = await getConsentStatus();
+              consentStatus = consentData.consent_accepted === true;
+            } catch (err) {
+              console.log('Could not fetch consent status, checking localStorage:', err);
+              const storedConsent = localStorage.getItem('consent_accepted');
+              consentStatus = storedConsent === 'true';
+            }
+            setConsentAccepted(consentStatus);
+            
+            // Check consent first
+            if (!consentStatus) {
+              setView("consent");
+              window.history.pushState({}, "", "/consent");
+              setLoginMessage("");
+              return;
+            }
+            
             setView("signup-survey");
             window.history.pushState({}, "", "/signup-survey");
             setLoginMessage("");
           }}
         />
       </div>
+    );
+  }
+
+  // Show consent form
+  if (view === "consent") {
+    return (
+      <ConsentForm
+        onAccept={async () => {
+          // Consent accepted, update state
+          setConsentAccepted(true);
+          
+          // Reload user data to check survey status
+          try {
+            const u = await me();
+            setUser(u);
+            localStorage.setItem("user", JSON.stringify(u));
+            
+            // Check if signup survey is required
+            if (u.survey_required === true) {
+              setView("signup-survey");
+              window.history.pushState({}, "", "/signup-survey");
+            } else {
+              // Navigate to chat
+              setView("chat");
+              window.history.pushState({}, "", "/chat");
+              loadAssignedCharacters(u);
+            }
+          } catch (error) {
+            console.error('Failed to reload user data:', error);
+            // Still check survey status from current user object
+            if (user?.survey_required === true) {
+              setView("signup-survey");
+              window.history.pushState({}, "", "/signup-survey");
+            } else {
+              setView("chat");
+              window.history.pushState({}, "", "/chat");
+            }
+          }
+        }}
+      />
     );
   }
 

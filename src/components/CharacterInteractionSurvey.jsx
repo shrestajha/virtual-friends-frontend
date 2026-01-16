@@ -23,21 +23,30 @@ import {
 const LIKERT_OPTIONS = [
   { value: 1, label: 'Strongly Disagree' },
   { value: 2, label: 'Disagree' },
-  { value: 3, label: 'Neither Agree nor Disagree' },
-  { value: 4, label: 'Somewhat Agree' },
-  { value: 5, label: 'Agree' },
-  { value: 6, label: 'Strongly Agree' }
+  { value: 3, label: 'Somewhat Disagree' },
+  { value: 4, label: 'Neither Agree nor Disagree' },
+  { value: 5, label: 'Somewhat Agree' },
+  { value: 6, label: 'Agree' },
+  { value: 7, label: 'Strongly Agree' }
 ];
 
 const QUESTIONS = [
-  { key: 'q1_thoughtful_guidance', text: 'provided thoughtful, strategic guidance.' },
-  { key: 'q2_explained_tradeoffs', text: 'clearly explained trade-offs or options.' },
-  { key: 'q3_problem_solving', text: 'seemed capable at problem-solving.' },
-  { key: 'q4_validated_feelings', text: 'recognized and validated the user\'s feelings.' },
-  { key: 'q5_supportive_compassionate', text: 'seemed supportive and compassionate.' },
-  { key: 'q6_emotional_needs', text: 'prioritized the user\'s emotional needs.' },
-  { key: 'q7_seemed_intelligent', text: 'seemed intelligent.' },
-  { key: 'q8_would_talk_again', text: 'I would want to talk to {characterName} again.' }
+  { key: 'q1_satisfied_help', text: 'I am satisfied with the AI agent\'s help regarding my problem.' },
+  { key: 'q2_satisfied_responses', text: 'I am satisfied with the AI agent\'s responses to my problem.' },
+  { key: 'q3_follow_steps', text: 'It\'s likely that I follow the steps suggested by the agent.' },
+  { key: 'q4_prefer_ai_over_human', text: 'If I experience the same problem again, I would prefer to interact with an AI agent rather than a human service representative.' },
+  { key: 'q5_recognized_feelings', text: 'The AI agent accurately recognized how I was feeling about the service problem.' },
+  { key: 'q6_understood_emotions', text: 'The AI agent showed a clear understanding of why the situation was emotionally frustrating or upsetting for me.' },
+  { key: 'q7_appropriate_emotional_response', text: 'The AI agent responded to my emotions in a way that felt appropriate to the situation.' },
+  { key: 'q8_reduced_negative_emotions', text: 'The AI agent helped reduce my negative emotions (e.g., frustration, anger, disappointment) during the interaction.' },
+  { key: 'q9_used_emotional_cues', text: 'The AI agent used my emotional cues to guide how it handled the service recovery.' },
+  { key: 'q10_accurate_information', text: 'The AI provided accurate and factually correct information in response to my service issue.' },
+  { key: 'q11_effectively_solved', text: 'The AI effectively solved or helped resolve the problem I encountered.' },
+  { key: 'q12_logically_reasoned', text: 'The AI\'s responses were logically reasoned and made sense in context.' },
+  { key: 'q13_adapted_responses', text: 'The AI adapted its responses based on the details of my situation.' },
+  { key: 'q14_handled_quickly', text: 'The AI handled the task quickly and competently without unnecessary delays.' },
+  { key: 'q15_felt_realistic', text: 'My experience with the AI agent felt realistic.' },
+  { key: 'q16_engaged_seriously', text: 'I engaged with the task seriously.' }
 ];
 
 export default function CharacterInteractionSurvey({ 
@@ -116,9 +125,7 @@ export default function CharacterInteractionSurvey({
       const errorMessage = err.message || 'Failed to submit survey';
       
       // Handle specific error cases
-      if (errorMessage.includes('Not all characters complete') || errorMessage.includes('all assigned characters')) {
-        setError('You need to complete 15 interactions with all 3 characters before you can submit surveys.');
-      } else if (errorMessage.includes('not at 15') || errorMessage.includes('15 interactions')) {
+      if (errorMessage.includes('not at 15') || errorMessage.includes('15 interactions')) {
         setError('This character needs 15 interactions before you can submit the survey.');
       } else if (errorMessage.includes('already completed')) {
         setError('You\'ve already completed the survey for this character.');
@@ -137,10 +144,7 @@ export default function CharacterInteractionSurvey({
   };
 
   const getQuestionText = (question, characterName) => {
-    if (question.key === 'q8_would_talk_again') {
-      return question.text.replace('{characterName}', characterName);
-    }
-    return `${characterName} ${question.text}`;
+    return question.text;
   };
 
   if (checkingStatus) {
@@ -172,11 +176,14 @@ export default function CharacterInteractionSurvey({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth>
       <DialogTitle>
-        Please rate your experience with {characterName}
+        Please indicate the extent to which you agree with the following statements about the AI agent you interacted with during the service recovery.
+        <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary', fontSize: '0.875rem' }}>
+          (1 = Strongly disagree, 7 = Strongly agree)
+        </Typography>
       </DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
@@ -187,13 +194,13 @@ export default function CharacterInteractionSurvey({
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ minWidth: 300 }}><strong>Statement</strong></TableCell>
+                <TableCell sx={{ minWidth: 400 }}><strong>Statement</strong></TableCell>
                 {LIKERT_OPTIONS.map(option => (
-                  <TableCell key={option.value} align="center" sx={{ minWidth: 100 }}>
-                    <Typography variant="caption" display="block">
+                  <TableCell key={option.value} align="center" sx={{ minWidth: 90 }}>
+                    <Typography variant="caption" display="block" sx={{ fontWeight: 'bold' }}>
                       {option.value}
                     </Typography>
-                    <Typography variant="caption" display="block" sx={{ fontSize: '0.7rem' }}>
+                    <Typography variant="caption" display="block" sx={{ fontSize: '0.65rem', lineHeight: 1.2 }}>
                       {option.label}
                     </Typography>
                   </TableCell>
@@ -204,7 +211,7 @@ export default function CharacterInteractionSurvey({
               {QUESTIONS.map((question, idx) => (
                 <TableRow key={question.key}>
                   <TableCell>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>
                       {idx + 1}. {getQuestionText(question, characterName)}
                     </Typography>
                   </TableCell>

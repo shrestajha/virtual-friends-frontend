@@ -272,11 +272,28 @@ export const submitSignupSurvey = (answers) =>
     q1_ai_chatbot_frequency: answers.q1,
     q2_virtual_character_experience: answers.q2,
     q3_ai_reasoning_belief: answers.q3,
-    q4_ai_empathy_belief: answers.q4
+    q4_ai_empathy_belief: answers.q4,
+    q5_not_powered_by_ai: answers.q5,
+    q6_fields_contributing_to_ai: answers.q6,
+    q7_knowledge_representation: answers.q7,
+    q8_decision_making_algorithm: answers.q8,
+    q9_first_step_ml: answers.q9,
+    q10_metadata_example: answers.q10,
+    q11_supervised_ml_learning: answers.q11,
+    q12_ai_physical_world: answers.q12,
+    q13_sensors_perception: answers.q13,
+    q14_ai_programmability: answers.q14
   });
 
 export const getSignupSurveyStatus = () => 
   http("GET", "/auth/signup-survey/status");
+
+// Consent API
+export const submitConsent = () => 
+  http("POST", "/auth/consent");
+
+export const getConsentStatus = () => 
+  http("GET", "/auth/consent/status");
 
 // Character Interaction Survey API
 export const getCharacterSurveyStatus = (characterId) => 
@@ -284,14 +301,22 @@ export const getCharacterSurveyStatus = (characterId) =>
 
 export const submitCharacterSurvey = (characterId, answers) => 
   http("POST", `/characters/${characterId}/interaction-survey`, {
-    q1_thoughtful_guidance: answers.q1_thoughtful_guidance,
-    q2_explained_tradeoffs: answers.q2_explained_tradeoffs,
-    q3_problem_solving: answers.q3_problem_solving,
-    q4_validated_feelings: answers.q4_validated_feelings,
-    q5_supportive_compassionate: answers.q5_supportive_compassionate,
-    q6_emotional_needs: answers.q6_emotional_needs,
-    q7_seemed_intelligent: answers.q7_seemed_intelligent,
-    q8_would_talk_again: answers.q8_would_talk_again
+    q1_satisfied_help: answers.q1_satisfied_help,
+    q2_satisfied_responses: answers.q2_satisfied_responses,
+    q3_follow_steps: answers.q3_follow_steps,
+    q4_prefer_ai_over_human: answers.q4_prefer_ai_over_human,
+    q5_recognized_feelings: answers.q5_recognized_feelings,
+    q6_understood_emotions: answers.q6_understood_emotions,
+    q7_appropriate_emotional_response: answers.q7_appropriate_emotional_response,
+    q8_reduced_negative_emotions: answers.q8_reduced_negative_emotions,
+    q9_used_emotional_cues: answers.q9_used_emotional_cues,
+    q10_accurate_information: answers.q10_accurate_information,
+    q11_effectively_solved: answers.q11_effectively_solved,
+    q12_logically_reasoned: answers.q12_logically_reasoned,
+    q13_adapted_responses: answers.q13_adapted_responses,
+    q14_handled_quickly: answers.q14_handled_quickly,
+    q15_felt_realistic: answers.q15_felt_realistic,
+    q16_engaged_seriously: answers.q16_engaged_seriously
   });
 
 // Admin APIs

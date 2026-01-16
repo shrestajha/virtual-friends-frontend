@@ -40,19 +40,112 @@ const beliefOptions = [
   "Extremely"
 ];
 
+// Q5: Which of the following is NOT powered by AI?
+const q5Options = [
+  "Self-driving cars (1)",
+  "Google's search algorithm (2)",
+  "A basic calculator (3)",
+  "Chatbots (4)"
+];
+
+// Q6: Which fields contribute to AI development?
+const q6Options = [
+  "Computer science (1)",
+  "Mathematics (2)",
+  "Psychology (3)",
+  "All of the above (4)"
+];
+
+// Q7: Knowledge representation in AI
+const q7Options = [
+  "Neural Networks (1)",
+  "Waterfall model (2)",
+  "Agile methodology (3)",
+  "SWOT analysis (4)"
+];
+
+// Q8: Algorithmic approach for decision-making
+const q8Options = [
+  "Dijkstra's algorithm (1)",
+  "Depth-first search (2)",
+  "Decision trees (3)",
+  "Fourier Transform (4)"
+];
+
+// Q9: First step in ML process
+const q9Options = [
+  "Data collection (1)",
+  "Model selection (2)",
+  "Prediction (3)",
+  "Model evaluation (4)"
+];
+
+// Q10: Example of metadata
+const q10Options = [
+  "A spreadsheet of numbers (1)",
+  "Column headers in a table (2)",
+  "A chart visualization (3)",
+  "Raw sensor data (4)"
+];
+
+// Q11: How supervised ML learns
+const q11Options = [
+  "From labeled data (1)",
+  "From rewards and punishments (2)",
+  "By observing human behavior (3)",
+  "From intrinsic motivation (4)"
+];
+
+// Q12: AI interacting with physical world
+const q12Options = [
+  "By planning movements (1)",
+  "By reacting to sensor inputs (2)",
+  "By actuating motors (3)",
+  "All of the above (4)"
+];
+
+// Q13: Sensors for perception
+const q13Options = [
+  "Cameras (1)",
+  "Microphones (2)",
+  "Thermometers (3)",
+  "All of the above (4)"
+];
+
+// Q14: Programmability of AI systems
+const q14Options = [
+  "They cannot be programmed by humans (1)",
+  "They program themselves (2)",
+  "They are programmed using data (3)",
+  "They are programmed by computer code (4)"
+];
+
 export default function SignupSurvey({ onComplete }) {
   const [answers, setAnswers] = useState({
     q1: '',
     q2: '',
     q3: '',
-    q4: ''
+    q4: '',
+    q5: '',
+    q6: '',
+    q7: '',
+    q8: '',
+    q9: '',
+    q10: '',
+    q11: '',
+    q12: '',
+    q13: '',
+    q14: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
 
   const isFormValid = () => {
-    return answers.q1 && answers.q2 && answers.q3 && answers.q4;
+    return answers.q1 && answers.q2 && answers.q3 && answers.q4 &&
+           answers.q5 && answers.q6 && answers.q7 && answers.q8 &&
+           answers.q9 && answers.q10 && answers.q11 && answers.q12 &&
+           answers.q13 && answers.q14;
   };
 
   const handleSubmit = async (e) => {
@@ -67,6 +160,16 @@ export default function SignupSurvey({ onComplete }) {
       if (!answers.q2) errors.q2 = 'This field is required';
       if (!answers.q3) errors.q3 = 'This field is required';
       if (!answers.q4) errors.q4 = 'This field is required';
+      if (!answers.q5) errors.q5 = 'This field is required';
+      if (!answers.q6) errors.q6 = 'This field is required';
+      if (!answers.q7) errors.q7 = 'This field is required';
+      if (!answers.q8) errors.q8 = 'This field is required';
+      if (!answers.q9) errors.q9 = 'This field is required';
+      if (!answers.q10) errors.q10 = 'This field is required';
+      if (!answers.q11) errors.q11 = 'This field is required';
+      if (!answers.q12) errors.q12 = 'This field is required';
+      if (!answers.q13) errors.q13 = 'This field is required';
+      if (!answers.q14) errors.q14 = 'This field is required';
       setFieldErrors(errors);
       return;
     }
@@ -78,7 +181,17 @@ export default function SignupSurvey({ onComplete }) {
         q1: answers.q1,
         q2: answers.q2,
         q3: answers.q3,
-        q4: answers.q4
+        q4: answers.q4,
+        q5: answers.q5,
+        q6: answers.q6,
+        q7: answers.q7,
+        q8: answers.q8,
+        q9: answers.q9,
+        q10: answers.q10,
+        q11: answers.q11,
+        q12: answers.q12,
+        q13: answers.q13,
+        q14: answers.q14
       });
 
       // Success - call onComplete to navigate to chat
@@ -144,8 +257,10 @@ export default function SignupSurvey({ onComplete }) {
         elevation={3}
         sx={{
           p: 4,
-          maxWidth: '600px',
-          width: '100%'
+          maxWidth: '700px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto'
         }}
       >
         <Typography variant="h4" gutterBottom align="center" sx={{ mb: 3, fontWeight: 600 }}>
@@ -265,6 +380,266 @@ export default function SignupSurvey({ onComplete }) {
               ))}
             </Select>
             {fieldErrors.q4 && <FormHelperText>{fieldErrors.q4}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 5 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q5}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q5-label">
+              Which of the following is NOT powered by AI?
+            </InputLabel>
+            <Select
+              labelId="q5-label"
+              id="q5"
+              value={answers.q5}
+              label="Which of the following is NOT powered by AI?"
+              onChange={(e) => handleChange('q5', e.target.value)}
+            >
+              {q5Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q5 && <FormHelperText>{fieldErrors.q5}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 6 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q6}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q6-label">
+              Which of the following fields contributes to the development of artificial intelligence?
+            </InputLabel>
+            <Select
+              labelId="q6-label"
+              id="q6"
+              value={answers.q6}
+              label="Which of the following fields contributes to the development of artificial intelligence?"
+              onChange={(e) => handleChange('q6', e.target.value)}
+            >
+              {q6Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q6 && <FormHelperText>{fieldErrors.q6}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 7 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q7}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q7-label">
+              What is a common form of knowledge representation in AI?
+            </InputLabel>
+            <Select
+              labelId="q7-label"
+              id="q7"
+              value={answers.q7}
+              label="What is a common form of knowledge representation in AI?"
+              onChange={(e) => handleChange('q7', e.target.value)}
+            >
+              {q7Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q7 && <FormHelperText>{fieldErrors.q7}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 8 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q8}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q8-label">
+              Which algorithmic approach is commonly used for decision-making in AI?
+            </InputLabel>
+            <Select
+              labelId="q8-label"
+              id="q8"
+              value={answers.q8}
+              label="Which algorithmic approach is commonly used for decision-making in AI?"
+              onChange={(e) => handleChange('q8', e.target.value)}
+            >
+              {q8Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q8 && <FormHelperText>{fieldErrors.q8}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 9 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q9}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q9-label">
+              What is the first step in a typical machine learning process?
+            </InputLabel>
+            <Select
+              labelId="q9-label"
+              id="q9"
+              value={answers.q9}
+              label="What is the first step in a typical machine learning process?"
+              onChange={(e) => handleChange('q9', e.target.value)}
+            >
+              {q9Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q9 && <FormHelperText>{fieldErrors.q9}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 10 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q10}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q10-label">
+              Which of the following is an example of metadata?
+            </InputLabel>
+            <Select
+              labelId="q10-label"
+              id="q10"
+              value={answers.q10}
+              label="Which of the following is an example of metadata?"
+              onChange={(e) => handleChange('q10', e.target.value)}
+            >
+              {q10Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q10 && <FormHelperText>{fieldErrors.q10}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 11 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q11}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q11-label">
+              How do supervised machine learning algorithms learn?
+            </InputLabel>
+            <Select
+              labelId="q11-label"
+              id="q11"
+              value={answers.q11}
+              label="How do supervised machine learning algorithms learn?"
+              onChange={(e) => handleChange('q11', e.target.value)}
+            >
+              {q11Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q11 && <FormHelperText>{fieldErrors.q11}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 12 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q12}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q12-label">
+              How can an AI system interact with the physical world?
+            </InputLabel>
+            <Select
+              labelId="q12-label"
+              id="q12"
+              value={answers.q12}
+              label="How can an AI system interact with the physical world?"
+              onChange={(e) => handleChange('q12', e.target.value)}
+            >
+              {q12Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q12 && <FormHelperText>{fieldErrors.q12}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 13 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q13}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q13-label">
+              Which of the following sensors allow an AI system to perceive the world?
+            </InputLabel>
+            <Select
+              labelId="q13-label"
+              id="q13"
+              value={answers.q13}
+              label="Which of the following sensors allow an AI system to perceive the world?"
+              onChange={(e) => handleChange('q13', e.target.value)}
+            >
+              {q13Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q13 && <FormHelperText>{fieldErrors.q13}</FormHelperText>}
+          </FormControl>
+
+          {/* Question 14 */}
+          <FormControl 
+            fullWidth 
+            required 
+            error={!!fieldErrors.q14}
+            sx={{ mb: 3 }}
+          >
+            <InputLabel id="q14-label">
+              Which statement best describes the programmability of AI systems?
+            </InputLabel>
+            <Select
+              labelId="q14-label"
+              id="q14"
+              value={answers.q14}
+              label="Which statement best describes the programmability of AI systems?"
+              onChange={(e) => handleChange('q14', e.target.value)}
+            >
+              {q14Options.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {fieldErrors.q14 && <FormHelperText>{fieldErrors.q14}</FormHelperText>}
           </FormControl>
 
           <Button
