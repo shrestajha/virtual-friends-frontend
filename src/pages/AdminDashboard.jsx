@@ -72,6 +72,28 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString();
 };
 
+// Helper function to parse agent_name from backend
+// Format: "Agent 1 (Low/Medium)" or "Agent 1"
+// Returns: { agentName: "Agent 1", eiCiCombination: "Low/Medium" } or { agentName: "Agent 1", eiCiCombination: null }
+const parseAgentName = (agentName) => {
+  if (!agentName) return { agentName: 'N/A', eiCiCombination: null };
+  
+  // Check if agent_name contains EI/CI combination in parentheses
+  const match = agentName.match(/^(.+?)\s*\(([^)]+)\)$/);
+  if (match) {
+    return {
+      agentName: match[1].trim(), // "Agent 1"
+      eiCiCombination: match[2].trim() // "Low/Medium"
+    };
+  }
+  
+  // If no parentheses, return the full name as agent name
+  return {
+    agentName: agentName.trim(),
+    eiCiCombination: null
+  };
+};
+
 // EI/CI Level Badge Component
 // Backend now sends string values: "Low", "Medium", "High"
 const LevelBadge = ({ level, label }) => {
@@ -142,6 +164,10 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
   const signupSurveyData = chat.signup_survey_data;
   const signupSurveyCompleted = chat.signup_survey_completed === true;
 
+  // Parse agent_name from backend (format: "Agent 1 (Low/Medium)")
+  const agentNameField = chat.agent_name || chat.character_name;
+  const { agentName, eiCiCombination } = parseAgentName(agentNameField);
+
   return (
     <>
       <TableRow>
@@ -157,10 +183,21 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
         <TableCell>
           {type === 'user' ? chat.user_email : (chat.participant_email || 'No email')}
         </TableCell>
-        <TableCell>{chat.character_name}</TableCell>
+        <TableCell>{agentName}</TableCell>
         <TableCell>
-          <LevelBadge level={chat.character_ei_level} label="EI" />
-          <LevelBadge level={chat.character_ci_level} label="CI" />
+          {eiCiCombination ? (
+            <Chip
+              label={`EI/CI: ${eiCiCombination}`}
+              size="small"
+              sx={{
+                bgcolor: '#2196f3',
+                color: 'white',
+                fontWeight: 'bold'
+              }}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">N/A</Typography>
+          )}
         </TableCell>
         <TableCell>
           {type === 'user' ? chat.message_count : chat.interactions}
@@ -297,7 +334,7 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
             <Collapse in={surveyExpanded} timeout="auto" unmountOnExit>
               <Box sx={{ p: 2, bgcolor: '#e8f5e9' }}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Survey Results: {chat.character_name}
+                  Survey Results: {agentName}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Completed: {formatDate(surveyData.completed_at)}
@@ -388,11 +425,14 @@ export default function AdminDashboard({ user }) {
   }, []);
 
   const handleViewSurvey = (chat, surveyData) => {
+    // Parse agent_name from backend
+    const agentNameField = chat.agent_name || chat.character_name;
+    const { agentName, eiCiCombination } = parseAgentName(agentNameField);
+    
     setSelectedSurvey({
       userEmail: chat.user_email || chat.participant_email || 'No email',
-      characterName: chat.character_name,
-      characterEI: chat.character_ei_level,
-      characterCI: chat.character_ci_level,
+      characterName: agentName,
+      eiCiCombination: eiCiCombination,
       surveyData: surveyData,
       completedAt: surveyData?.completed_at
     });
@@ -846,8 +886,8 @@ export default function AdminDashboard({ user }) {
                   <strong>User:</strong> {selectedSurvey.userEmail}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Character:</strong> {selectedSurvey.characterName} 
-                  {' '}(EI: {selectedSurvey.characterEI}, CI: {selectedSurvey.characterCI})
+                  <strong>Agent:</strong> {selectedSurvey.characterName}
+                  {selectedSurvey.eiCiCombination && ` (${selectedSurvey.eiCiCombination})`}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Completed:</strong> {formatDate(selectedSurvey.completedAt)}
