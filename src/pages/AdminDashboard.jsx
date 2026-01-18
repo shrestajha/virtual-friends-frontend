@@ -73,23 +73,64 @@ const formatDate = (dateString) => {
 };
 
 // Helper function to parse agent_name from backend
-// Format: "Agent 1 (Low/Medium)" or "Agent 1"
+// Format: "Agent 1 (Low/Medium)" or "Agent 1" or numeric IDs like "1" (1-9)
 // Returns: { agentName: "Agent 1", eiCiCombination: "Low/Medium" } or { agentName: "Agent 1", eiCiCombination: null }
 const parseAgentName = (agentName) => {
   if (!agentName) return { agentName: 'N/A', eiCiCombination: null };
   
+  // Convert numeric agent IDs (1-9) to "Agent X" format
+  // If agentName is just a number or looks like "7/4", extract the agent ID
+  const numericMatch = String(agentName).match(/^(\d+)/);
+  if (numericMatch) {
+    const agentId = parseInt(numericMatch[1], 10);
+    if (agentId >= 1 && agentId <= 9) {
+      // Check if there's an EI/CI combination after the number (e.g., "7/4" means Agent 7 with EI/CI)
+      const slashMatch = String(agentName).match(/^\d+\/(.+)$/);
+      if (slashMatch) {
+        // Format like "7/4" - the second part might be EI/CI, but we need actual text
+        // For now, just return Agent number
+        return {
+          agentName: `Agent ${agentId}`,
+          eiCiCombination: null // Will be handled separately if provided
+        };
+      }
+      return {
+        agentName: `Agent ${agentId}`,
+        eiCiCombination: null
+      };
+    }
+  }
+  
   // Check if agent_name contains EI/CI combination in parentheses
-  const match = agentName.match(/^(.+?)\s*\(([^)]+)\)$/);
+  const match = String(agentName).match(/^(.+?)\s*\(([^)]+)\)$/);
   if (match) {
+    let parsedName = match[1].trim();
+    // If the name part is numeric, convert to "Agent X"
+    const nameNumericMatch = parsedName.match(/^(\d+)$/);
+    if (nameNumericMatch) {
+      const agentId = parseInt(nameNumericMatch[1], 10);
+      if (agentId >= 1 && agentId <= 9) {
+        parsedName = `Agent ${agentId}`;
+      }
+    }
     return {
-      agentName: match[1].trim(), // "Agent 1"
+      agentName: parsedName,
       eiCiCombination: match[2].trim() // "Low/Medium"
     };
   }
   
-  // If no parentheses, return the full name as agent name
+  // If it's just a number 1-9, convert to "Agent X"
+  const justNumeric = parseInt(String(agentName).trim(), 10);
+  if (!isNaN(justNumeric) && justNumeric >= 1 && justNumeric <= 9) {
+    return {
+      agentName: `Agent ${justNumeric}`,
+      eiCiCombination: null
+    };
+  }
+  
+  // If no parentheses and not numeric, return as is
   return {
-    agentName: agentName.trim(),
+    agentName: String(agentName).trim(),
     eiCiCombination: null
   };
 };
@@ -153,6 +194,43 @@ const calculateSurveyAverage = (surveyData) => {
   return (sum / values.length).toFixed(1);
 };
 
+// Helper function to convert numeric EI/CI levels to text
+const numericLevelToText = (level) => {
+  if (typeof level === 'string') {
+    const upper = level.toUpperCase();
+    if (upper === 'HIGH' || upper === 'MEDIUM' || upper === 'LOW') {
+      return level; // Already text
+    }
+  }
+  if (typeof level === 'number') {
+    if (level >= 8) return 'High';
+    if (level >= 4) return 'Medium';
+    return 'Low';
+  }
+  return null;
+};
+
+// Helper function to format EI/CI combination from separate fields or combined string
+const formatEICICombination = (eiLevel, ciLevel, combination) => {
+  // If combination is already provided as text (e.g., "Low/Medium")
+  if (combination && typeof combination === 'string') {
+    // Check if it's already in the correct format
+    if (combination.match(/^(Low|Medium|High)\/(Low|Medium|High)$/i)) {
+      return combination;
+    }
+  }
+  
+  // Convert numeric levels to text if needed
+  const eiText = numericLevelToText(eiLevel);
+  const ciText = numericLevelToText(ciLevel);
+  
+  if (eiText && ciText) {
+    return `${eiText}/${ciText}`;
+  }
+  
+  return combination || null;
+};
+
 // Expandable Chat Row Component
 const ChatRow = ({ chat, type, onViewSurvey }) => {
   const [expanded, setExpanded] = useState(false);
@@ -166,7 +244,11 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
 
   // Parse agent_name from backend (format: "Agent 1 (Low/Medium)")
   const agentNameField = chat.agent_name || chat.character_name;
-  const { agentName, eiCiCombination } = parseAgentName(agentNameField);
+  const { agentName, eiCiCombination: parsedCombination } = parseAgentName(agentNameField);
+  
+  // Format EI/CI combination - use parsed combination or convert from separate fields
+  const eiCiCombination = parsedCombination || 
+    formatEICICombination(chat.character_ei_level, chat.character_ci_level, parsedCombination);
 
   return (
     <>
@@ -712,7 +794,7 @@ export default function AdminDashboard({ user }) {
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
           <Tab label={`User Chats (${user_chats?.length || 0})`} />
           <Tab label={`Participant Chats (${participant_chats?.length || 0})`} />
-          <Tab label={`Characters (${characters?.length || 0})`} />
+          <Tab label={`Agents (${characters?.length || 0})`} />
         </Tabs>
 
         {/* User Chats Tab */}
@@ -783,13 +865,13 @@ export default function AdminDashboard({ user }) {
           </TableContainer>
         )}
 
-        {/* Characters Tab */}
+        {/* Agents Tab */}
         {tabValue === 2 && (
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><strong>Name</strong></TableCell>
+                  <TableCell><strong>Agent</strong></TableCell>
                   <TableCell><strong>EI Level</strong></TableCell>
                   <TableCell><strong>CI Level</strong></TableCell>
                   <TableCell><strong>Description</strong></TableCell>
@@ -800,23 +882,37 @@ export default function AdminDashboard({ user }) {
                   <TableRow>
                     <TableCell colSpan={4} align="center">
                       <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                        No characters found
+                        No agents found
                       </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  characters.map((char) => (
-                    <TableRow key={char.id}>
-                      <TableCell>{char.name}</TableCell>
-                      <TableCell>
-                        <LevelBadge level={char.ei_level} label="EI" />
-                      </TableCell>
-                      <TableCell>
-                        <LevelBadge level={char.ci_level} label="CI" />
-                      </TableCell>
-                      <TableCell>{char.description || 'N/A'}</TableCell>
-                    </TableRow>
-                  ))
+                  characters.map((char) => {
+                    // Parse agent name - convert numeric IDs to "Agent X" format
+                    let agentName = char.name;
+                    if (char.id && typeof char.id === 'number' && char.id >= 1 && char.id <= 9) {
+                      agentName = `Agent ${char.id}`;
+                    } else if (typeof char.name === 'number' && char.name >= 1 && char.name <= 9) {
+                      agentName = `Agent ${char.name}`;
+                    } else {
+                      // Try to parse from name field
+                      const parsed = parseAgentName(char.name);
+                      agentName = parsed.agentName;
+                    }
+                    
+                    return (
+                      <TableRow key={char.id}>
+                        <TableCell>{agentName}</TableCell>
+                        <TableCell>
+                          <LevelBadge level={char.ei_level} label="EI" />
+                        </TableCell>
+                        <TableCell>
+                          <LevelBadge level={char.ci_level} label="CI" />
+                        </TableCell>
+                        <TableCell>{char.description || 'N/A'}</TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
