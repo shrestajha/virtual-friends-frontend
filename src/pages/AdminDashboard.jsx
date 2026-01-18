@@ -47,10 +47,23 @@ const isAllowedAdminEmail = (email) => {
 };
 
 // Helper function to get EI/CI level color
+// Backend now sends string values: "Low", "Medium", "High"
 const getLevelColor = (level) => {
-  if (level >= 8) return '#4caf50'; // Green
-  if (level >= 4) return '#ff9800'; // Orange
-  return '#f44336'; // Red
+  // Handle string values from backend
+  if (typeof level === 'string') {
+    const levelUpper = level.toUpperCase();
+    if (levelUpper === 'HIGH') return '#4caf50'; // Green
+    if (levelUpper === 'MEDIUM') return '#ff9800'; // Orange
+    if (levelUpper === 'LOW') return '#f44336'; // Red
+  }
+  // Fallback for numeric values (backward compatibility)
+  if (typeof level === 'number') {
+    if (level >= 8) return '#4caf50'; // Green
+    if (level >= 4) return '#ff9800'; // Orange
+    return '#f44336'; // Red
+  }
+  // Default gray for unknown values
+  return '#9e9e9e';
 };
 
 // Helper function to format date
@@ -60,18 +73,31 @@ const formatDate = (dateString) => {
 };
 
 // EI/CI Level Badge Component
-const LevelBadge = ({ level, label }) => (
-  <Chip
-    label={`${label}: ${level}/10`}
-    size="small"
-    sx={{
-      bgcolor: getLevelColor(level),
-      color: 'white',
-      fontWeight: 'bold',
-      mr: 0.5
-    }}
-  />
-);
+// Backend now sends string values: "Low", "Medium", "High"
+const LevelBadge = ({ level, label }) => {
+  // Display string value directly, or format numeric as fallback
+  let displayValue;
+  if (typeof level === 'string') {
+    displayValue = level; // Display "Low", "Medium", "High" directly
+  } else if (typeof level === 'number') {
+    displayValue = `${level}/10`; // Fallback for numeric values
+  } else {
+    displayValue = 'N/A';
+  }
+  
+  return (
+    <Chip
+      label={`${label}: ${displayValue}`}
+      size="small"
+      sx={{
+        bgcolor: getLevelColor(level),
+        color: 'white',
+        fontWeight: 'bold',
+        mr: 0.5
+      }}
+    />
+  );
+};
 
 // Helper function to get Likert scale label
 const getLikertLabel = (value) => {
