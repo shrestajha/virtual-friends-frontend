@@ -20,7 +20,7 @@ export default function ChatPage({ user }) {
   const [surveyCharacterName, setSurveyCharacterName] = useState('');
   const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
 
-  // Check if any character has reached 15 interactions and show survey for that character
+  // Check if any character has reached 10 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
     if (!participantData || !participantData.characters) {
       console.log('checkAndShowSurvey: No participant data or characters');
@@ -35,12 +35,12 @@ export default function ChatPage({ user }) {
       console.log(`Character ${char.name} (${char.id}): ${char.interactions || 0} interactions`);
     });
     
-    // Find the first character that has reached 15 interactions and hasn't completed its survey
+    // Find the first character that has reached 10 interactions and hasn't completed its survey
     const characterNeedingSurvey = characters.find(char => {
       const interactions = char.interactions || 0;
       const charId = String(char.id);
       const isCompleted = completedSurveys.has(charId);
-      const hasEnoughInteractions = interactions >= 15;
+      const hasEnoughInteractions = interactions >= 10;
       
       console.log(`Character ${char.name} (${charId}): ${interactions} interactions, survey completed? ${isCompleted}`);
       
@@ -51,12 +51,12 @@ export default function ChatPage({ user }) {
       const charId = String(characterNeedingSurvey.id);
       const charName = characterNeedingSurvey.name || 'this character';
       
-      console.log('Character has 15 interactions! Showing survey for:', charName, '(ID:', charId, ')');
+      console.log('Character has 10 interactions! Showing survey for:', charName, '(ID:', charId, ')');
       setSurveyCharacterId(charId);
       setSurveyCharacterName(charName);
       setSurveyOpen(true);
     } else {
-      console.log('No character needs survey yet (either not at 15 interactions or already completed)');
+      console.log('No character needs survey yet (either not at 10 interactions or already completed)');
     }
   }, [completedSurveys]);
 
@@ -220,7 +220,7 @@ export default function ChatPage({ user }) {
     );
     const currentCount = character?.interactions || character?.interaction_count || 0;
     
-    if (currentCount >= 15) {
+    if (currentCount >= 10) {
       return; // Already at limit
     }
 
@@ -270,7 +270,7 @@ export default function ChatPage({ user }) {
           localStorage.setItem('participantId', updatedParticipant._id);
         }
         
-        // Check if all characters have reached 15 interactions and show survey
+        // Check if all characters have reached 10 interactions and show survey
         checkAndShowSurvey(updatedParticipant);
       } else {
         // Fallback: reload participant data to get updated chat history and interaction counts
@@ -352,7 +352,7 @@ export default function ChatPage({ user }) {
   const chatHistory = getCurrentChatHistory();
   // Backend returns 'interactions' field
   const currentCount = currentCharacter?.interactions || 0;
-  const hasReachedLimit = currentCount >= 15;
+  const hasReachedLimit = currentCount >= 10;
   // Backend returns 'surveyUnlocked' field (camelCase)
   const surveyUnlocked = participant.surveyUnlocked === true || participant.survey_unlocked === true;
 
@@ -388,7 +388,7 @@ export default function ChatPage({ user }) {
           {characters.map((char) => {
             // Backend returns 'interactions' field
             const count = char.interactions || 0;
-            const isCompleted = count >= 15;
+            const isCompleted = count >= 10;
             return (
               <Tab
                 key={char.id}
@@ -405,7 +405,7 @@ export default function ChatPage({ user }) {
                         fontSize: '0.7rem'
                       }}
                     >
-                      {count}/15
+                      {count}/10
                     </Typography>
                   </Box>
                 }
@@ -500,7 +500,7 @@ export default function ChatPage({ user }) {
       {hasReachedLimit && !surveyUnlocked && (
         <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: 0 }}>
           <Typography variant="body2" align="center" color="text.secondary">
-            Completed – Survey available once all characters reach 15
+            Completed – Survey available once all characters reach 10
           </Typography>
         </Paper>
       )}

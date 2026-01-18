@@ -125,8 +125,8 @@ export default function CharacterInteractionSurvey({
       const errorMessage = err.message || 'Failed to submit survey';
       
       // Handle specific error cases
-      if (errorMessage.includes('not at 15') || errorMessage.includes('15 interactions')) {
-        setError('This character needs 15 interactions before you can submit the survey.');
+      if (errorMessage.includes('not at 10') || errorMessage.includes('10 interactions') || errorMessage.includes('not at 15') || errorMessage.includes('15 interactions')) {
+        setError('This character needs 10 interactions before you can submit the survey.');
       } else if (errorMessage.includes('already completed')) {
         setError('You\'ve already completed the survey for this character.');
         setAlreadyCompleted(true);
