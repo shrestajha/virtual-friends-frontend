@@ -246,9 +246,19 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
   const agentNameField = chat.agent_name || chat.character_name;
   const { agentName, eiCiCombination: parsedCombination } = parseAgentName(agentNameField);
   
-  // Format EI/CI combination - use parsed combination or convert from separate fields
-  const eiCiCombination = parsedCombination || 
-    formatEICICombination(chat.character_ei_level, chat.character_ci_level, parsedCombination);
+  // Format EI/CI combination - prioritize parsed, then convert from separate fields
+  let eiCiCombination = parsedCombination;
+  
+  // If no combination from parsing, try converting from separate numeric fields
+  if (!eiCiCombination && (chat.character_ei_level !== undefined || chat.character_ci_level !== undefined)) {
+    eiCiCombination = formatEICICombination(chat.character_ei_level, chat.character_ci_level, null);
+  }
+  
+  // If agent_name looks like "10/10", it might be agent ID / something else, not EI/CI
+  // But we still need to extract EI/CI from separate fields if available
+  // The agentName parsing should have already handled the agent number part
+  
+  console.log('[ChatRow] agent_name:', agentNameField, 'agentName:', agentName, 'eiCiCombination:', eiCiCombination, 'ei_level:', chat.character_ei_level, 'ci_level:', chat.character_ci_level);
 
   return (
     <>
