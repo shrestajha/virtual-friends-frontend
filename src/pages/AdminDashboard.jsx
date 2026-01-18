@@ -73,64 +73,79 @@ const formatDate = (dateString) => {
 };
 
 // Helper function to parse agent_name from backend
-// Format: "Agent 1 (Low/Medium)" or "Agent 1" or numeric IDs like "1" (1-9)
-// Returns: { agentName: "Agent 1", eiCiCombination: "Low/Medium" } or { agentName: "Agent 1", eiCiCombination: null }
+// Format: "Agent 1 (Low/Low)" - preferred text format from admin endpoints
+// OR: "7/4 (7/4)" - legacy numeric format (for backward compatibility)
+// Returns: { agentName: "Agent 1", eiCiCombination: "Low/Low" } or { agentName: "Agent 7", eiLevel: 4, ... }
 const parseAgentName = (agentName) => {
-  if (!agentName) return { agentName: 'N/A', eiCiCombination: null };
+  if (!agentName) return { agentName: 'N/A', eiLevel: null, ciLevel: null, eiCiCombination: null };
   
-  // Convert numeric agent IDs (1-9) to "Agent X" format
-  // If agentName is just a number or looks like "7/4", extract the agent ID
-  const numericMatch = String(agentName).match(/^(\d+)/);
-  if (numericMatch) {
-    const agentId = parseInt(numericMatch[1], 10);
-    if (agentId >= 1 && agentId <= 9) {
-      // Check if there's an EI/CI combination after the number (e.g., "7/4" means Agent 7 with EI/CI)
-      const slashMatch = String(agentName).match(/^\d+\/(.+)$/);
-      if (slashMatch) {
-        // Format like "7/4" - the second part might be EI/CI, but we need actual text
-        // For now, just return Agent number
-        return {
-          agentName: `Agent ${agentId}`,
-          eiCiCombination: null // Will be handled separately if provided
-        };
-      }
-      return {
-        agentName: `Agent ${agentId}`,
-        eiCiCombination: null
-      };
-    }
-  }
+  const agentNameStr = String(agentName).trim();
   
-  // Check if agent_name contains EI/CI combination in parentheses
-  const match = String(agentName).match(/^(.+?)\s*\(([^)]+)\)$/);
-  if (match) {
-    let parsedName = match[1].trim();
-    // If the name part is numeric, convert to "Agent X"
-    const nameNumericMatch = parsedName.match(/^(\d+)$/);
-    if (nameNumericMatch) {
-      const agentId = parseInt(nameNumericMatch[1], 10);
+  // Priority 1: Handle text format "Agent 1 (Low/Low)" or "Agent 1 (Low/Medium)" - preferred format
+  const textFormatMatch = agentNameStr.match(/^(Agent\s+\d+|Agent\s*\d+|\d+)\s*\(([^)]+)\)$/);
+  if (textFormatMatch) {
+    let parsedName = textFormatMatch[1].trim();
+    const combination = textFormatMatch[2].trim();
+    
+    // Extract agent number if name is numeric or "Agent X"
+    const agentMatch = parsedName.match(/(?:Agent\s*)?(\d+)/i);
+    if (agentMatch) {
+      const agentId = parseInt(agentMatch[1], 10);
       if (agentId >= 1 && agentId <= 9) {
         parsedName = `Agent ${agentId}`;
       }
     }
-    return {
-      agentName: parsedName,
-      eiCiCombination: match[2].trim() // "Low/Medium"
-    };
+    
+    // Check if combination is text format (Low/Low, Medium/High, etc.)
+    if (combination.match(/^(Low|Medium|High)\/(Low|Medium|High)$/i)) {
+      return {
+        agentName: parsedName,
+        eiLevel: null,
+        ciLevel: null,
+        eiCiCombination: combination // Already in text format
+      };
+    }
   }
   
-  // If it's just a number 1-9, convert to "Agent X"
-  const justNumeric = parseInt(String(agentName).trim(), 10);
-  if (!isNaN(justNumeric) && justNumeric >= 1 && justNumeric <= 9) {
-    return {
-      agentName: `Agent ${justNumeric}`,
-      eiCiCombination: null
-    };
+  // Priority 2: Handle legacy numeric format "7/4 (7/4)" - for backward compatibility
+  const numericFormatMatch = agentNameStr.match(/^(\d+)\/(\d+)(?:\s*\((\d+)\/(\d+)\))?$/);
+  if (numericFormatMatch) {
+    const agentId = parseInt(numericFormatMatch[1], 10);
+    const eiLevelNum = parseInt(numericFormatMatch[2], 10);
+    const ciLevelNum = numericFormatMatch[4] ? parseInt(numericFormatMatch[4], 10) : parseInt(numericFormatMatch[3], 10) || null;
+    
+    if (agentId >= 1 && agentId <= 9) {
+      return {
+        agentName: `Agent ${agentId}`,
+        eiLevel: eiLevelNum,
+        ciLevel: ciLevelNum || eiLevelNum,
+        eiCiCombination: null // Will be converted from numeric to text
+      };
+    }
   }
   
-  // If no parentheses and not numeric, return as is
+  // Priority 3: Handle just "Agent 1" or "Agent X" format (no EI/CI)
+  const agentOnlyMatch = agentNameStr.match(/^(Agent\s+\d+|Agent\s*\d+|\d+)$/i);
+  if (agentOnlyMatch) {
+    const agentMatch = agentNameStr.match(/(?:Agent\s*)?(\d+)/i);
+    if (agentMatch) {
+      const agentId = parseInt(agentMatch[1], 10);
+      if (agentId >= 1 && agentId <= 9) {
+        return {
+          agentName: `Agent ${agentId}`,
+          eiLevel: null,
+          ciLevel: null,
+          eiCiCombination: null
+        };
+      }
+    }
+  }
+  
+  // Default: return as-is (shouldn't happen with correct backend format)
   return {
-    agentName: String(agentName).trim(),
+    agentName: agentNameStr,
+    eiLevel: null,
+    ciLevel: null,
     eiCiCombination: null
   };
 };
@@ -242,23 +257,22 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
   const signupSurveyData = chat.signup_survey_data;
   const signupSurveyCompleted = chat.signup_survey_completed === true;
 
-  // Parse agent_name from backend (format: "Agent 1 (Low/Medium)")
+  // Parse agent_name from backend (format: "7/4 (7/4)" or "Agent 1 (Low/Medium)")
   const agentNameField = chat.agent_name || chat.character_name;
-  const { agentName, eiCiCombination: parsedCombination } = parseAgentName(agentNameField);
+  const { agentName, eiLevel: parsedEI, ciLevel: parsedCI, eiCiCombination: parsedCombination } = parseAgentName(agentNameField);
   
-  // Format EI/CI combination - prioritize parsed, then convert from separate fields
+  // Format EI/CI combination - prioritize parsed text combination, then convert from numeric values
   let eiCiCombination = parsedCombination;
   
-  // If no combination from parsing, try converting from separate numeric fields
+  // If we have parsed numeric EI/CI levels from agent_name, convert them to text
+  if (!eiCiCombination && (parsedEI !== null || parsedCI !== null)) {
+    eiCiCombination = formatEICICombination(parsedEI, parsedCI, null);
+  }
+  
+  // If still no combination, try converting from separate fields in chat object
   if (!eiCiCombination && (chat.character_ei_level !== undefined || chat.character_ci_level !== undefined)) {
     eiCiCombination = formatEICICombination(chat.character_ei_level, chat.character_ci_level, null);
   }
-  
-  // If agent_name looks like "10/10", it might be agent ID / something else, not EI/CI
-  // But we still need to extract EI/CI from separate fields if available
-  // The agentName parsing should have already handled the agent number part
-  
-  console.log('[ChatRow] agent_name:', agentNameField, 'agentName:', agentName, 'eiCiCombination:', eiCiCombination, 'ei_level:', chat.character_ei_level, 'ci_level:', chat.character_ci_level);
 
   return (
     <>
