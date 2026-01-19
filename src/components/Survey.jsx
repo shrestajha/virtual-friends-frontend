@@ -31,7 +31,7 @@ export default function Survey() {
           color: 'var(--muted)',
           lineHeight: '1.6'
         }}>
-          You have completed 10 interactions. Please complete the final survey.
+          You have completed 7 interactions. Please complete the final survey.
         </p>
         <a
           href={surveyUrl}
