@@ -512,6 +512,226 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
   );
 };
 
+// Survey Response Row Component - displays all survey data for a user
+const SurveyResponseRow = ({ userData, onViewSurvey }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [consentExpanded, setConsentExpanded] = useState(false);
+  const [signupSurveyExpanded, setSignupSurveyExpanded] = useState(false);
+  
+  const hasConsent = userData.consentAccepted;
+  const hasSignupSurvey = userData.signupSurveyCompleted && userData.signupSurveyData;
+  const hasInteractionSurveys = userData.interactionSurveys.length > 0;
+  
+  return (
+    <Paper sx={{ mb: 2, p: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box>
+          <Typography variant="h6">{userData.email}</Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            {hasConsent && (
+              <Chip 
+                label={`Consent: ${formatDate(userData.consentDate)}`} 
+                color="success" 
+                size="small" 
+              />
+            )}
+            {hasSignupSurvey && (
+              <Chip 
+                label={`Signup Survey: ${formatDate(userData.signupSurveyData?.completed_at)}`} 
+                color="info" 
+                size="small" 
+              />
+            )}
+            {hasInteractionSurveys && (
+              <Chip 
+                label={`Interaction Surveys: ${userData.interactionSurveys.length}`} 
+                color="primary" 
+                size="small" 
+              />
+            )}
+          </Box>
+        </Box>
+        <IconButton onClick={() => setExpanded(!expanded)}>
+          {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+      
+      <Collapse in={expanded} timeout="auto" unmountOnExit>
+        <Box sx={{ mt: 2 }}>
+          {/* Consent Form Section */}
+          <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: hasConsent ? '#e8f5e9' : '#ffebee' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                Consent Form
+              </Typography>
+              <IconButton size="small" onClick={() => setConsentExpanded(!consentExpanded)}>
+                {consentExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Box>
+            {hasConsent ? (
+              <Typography variant="body2" color="text.secondary">
+                Status: Accepted
+                {userData.consentDate && ` • Date: ${formatDate(userData.consentDate)}`}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="error">
+                Not completed
+              </Typography>
+            )}
+            <Collapse in={consentExpanded} timeout="auto" unmountOnExit>
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'white', borderRadius: 1 }}>
+                <Typography variant="body2">
+                  The user has accepted the research study consent form.
+                  {userData.consentDate && ` Accepted on ${formatDate(userData.consentDate)}.`}
+                </Typography>
+              </Box>
+            </Collapse>
+          </Paper>
+          
+          {/* Signup Survey Section */}
+          <Paper elevation={1} sx={{ p: 2, mb: 2, bgcolor: hasSignupSurvey ? '#e3f2fd' : '#fff3e0' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                Initial Signup Survey
+              </Typography>
+              <IconButton size="small" onClick={() => setSignupSurveyExpanded(!signupSurveyExpanded)}>
+                {signupSurveyExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Box>
+            {hasSignupSurvey ? (
+              <Typography variant="body2" color="text.secondary">
+                Completed: {formatDate(userData.signupSurveyData?.completed_at)}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="warning.main">
+                Not completed
+              </Typography>
+            )}
+            <Collapse in={signupSurveyExpanded} timeout="auto" unmountOnExit>
+              <Box sx={{ mt: 2 }}>
+                {userData.signupSurveyData ? (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell><strong>Question</strong></TableCell>
+                          <TableCell><strong>Response</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Q1: How often do you use AI chatbots?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q1_ai_chatbot_frequency || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q2: Have you chatted with a virtual character in the past 6 months?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q2_virtual_character_experience || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q3: To what extent do you think AI chatbots can reason and make decisions?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q3_ai_reasoning_belief || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q4: To what extent do you think AI chatbots can empathize and express emotions?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q4_ai_empathy_belief || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q5: Which is NOT powered by AI?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q5_not_powered_by_ai || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q6: Which fields contribute to AI development?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q6_fields_contributing_to_ai || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q7: What is a common form of knowledge representation in AI?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q7_knowledge_representation || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q8: Which algorithmic approach is commonly used for decision-making?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q8_decision_making_algorithm || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q9: What is the first step in a typical ML process?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q9_first_step_ml || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q10: Which is an example of metadata?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q10_metadata_example || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q11: How do supervised ML algorithms learn?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q11_supervised_ml_learning || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q12: How can an AI system interact with the physical world?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q12_ai_physical_world || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q13: Which sensors allow an AI system to perceive the world?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q13_sensors_perception || 'N/A'}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Q14: Which statement best describes the programmability of AI systems?</TableCell>
+                          <TableCell>{userData.signupSurveyData.q14_ai_programmability || 'N/A'}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No survey data available
+                  </Typography>
+                )}
+              </Box>
+            </Collapse>
+          </Paper>
+          
+          {/* Interaction Surveys Section */}
+          <Paper elevation={1} sx={{ p: 2, bgcolor: hasInteractionSurveys ? '#f3e5f5' : '#f5f5f5' }}>
+            <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
+              Interaction Surveys (Completed: {userData.interactionSurveys.length})
+            </Typography>
+            {hasInteractionSurveys ? (
+              <Box sx={{ mt: 2 }}>
+                {userData.interactionSurveys.map((interaction, idx) => (
+                  <Paper key={idx} elevation={0} sx={{ p: 2, mb: 1, bgcolor: 'white', border: '1px solid #e0e0e0' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="body1" fontWeight="medium">
+                        {interaction.agentName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Completed: {formatDate(interaction.completedAt)}
+                      </Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<AssignmentIcon />}
+                      onClick={() => {
+                        if (onViewSurvey) {
+                          const fakeChat = { agent_name: interaction.agentName, user_email: userData.email };
+                          onViewSurvey(fakeChat, interaction.surveyData);
+                        }
+                      }}
+                    >
+                      View Full Survey
+                    </Button>
+                  </Paper>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No interaction surveys completed yet
+              </Typography>
+            )}
+          </Paper>
+        </Box>
+      </Collapse>
+    </Paper>
+  );
+};
+
 export default function AdminDashboard({ user }) {
   const [dashboardData, setDashboardData] = useState(null);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -816,44 +1036,75 @@ export default function AdminDashboard({ user }) {
       {/* Tabs for User Chats and Participant Chats */}
       <Paper>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab label={`User Chats (${user_chats?.length || 0})`} />
+          <Tab label={`Survey Responses`} />
           <Tab label={`Participant Chats (${participant_chats?.length || 0})`} />
           <Tab label={`Agents (${characters?.length || 0})`} />
         </Tabs>
 
-        {/* User Chats Tab */}
-        {tabValue === 0 && (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="50px"></TableCell>
-                  <TableCell><strong>User Email</strong></TableCell>
-                  <TableCell><strong>Character</strong></TableCell>
-                  <TableCell><strong>EI/CI Levels</strong></TableCell>
-                  <TableCell><strong>Messages</strong></TableCell>
-                  <TableCell><strong>Last Message</strong></TableCell>
-                  <TableCell><strong>Survey Status</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {!user_chats || user_chats.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                        No user chats found
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  user_chats.map((chat, idx) => (
-                    <ChatRow key={idx} chat={chat} type="user" onViewSurvey={handleViewSurvey} />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+        {/* Survey Responses Tab */}
+        {tabValue === 0 && (() => {
+          // Aggregate survey data from both user_chats and participant_chats
+          const allChats = [...(user_chats || []), ...(participant_chats || [])];
+          const surveyByUser = {};
+          
+          // Group chats by user email
+          allChats.forEach(chat => {
+            const email = chat.user_email || chat.participant_email || 'No email';
+            if (!surveyByUser[email]) {
+              surveyByUser[email] = {
+                email: email,
+                consentAccepted: chat.consent_accepted || false,
+                consentDate: chat.consent_accepted_at || null,
+                signupSurveyCompleted: chat.signup_survey_completed || false,
+                signupSurveyData: chat.signup_survey_data || null,
+                interactionSurveys: []
+              };
+            }
+            
+            // Collect interaction surveys for each character
+            if (chat.interaction_survey_completed && chat.interaction_survey_data) {
+              const agentNameField = chat.agent_name || chat.character_name;
+              const { agentName } = parseAgentName(agentNameField);
+              
+              surveyByUser[email].interactionSurveys.push({
+                agentName: agentName,
+                agentId: chat.character_id,
+                surveyData: chat.interaction_survey_data,
+                completedAt: chat.interaction_survey_data?.completed_at || null
+              });
+            }
+            
+            // Update consent and signup survey from latest chat if not set
+            if (!surveyByUser[email].consentAccepted && chat.consent_accepted) {
+              surveyByUser[email].consentAccepted = true;
+              surveyByUser[email].consentDate = chat.consent_accepted_at;
+            }
+            if (!surveyByUser[email].signupSurveyCompleted && chat.signup_survey_completed) {
+              surveyByUser[email].signupSurveyCompleted = true;
+              surveyByUser[email].signupSurveyData = chat.signup_survey_data;
+            }
+          });
+          
+          const surveyUsers = Object.values(surveyByUser);
+          
+          return (
+            <Box sx={{ p: 2 }}>
+              {surveyUsers.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                  No survey responses found
+                </Typography>
+              ) : (
+                surveyUsers.map((userData, idx) => (
+                  <SurveyResponseRow 
+                    key={idx} 
+                    userData={userData} 
+                    onViewSurvey={handleViewSurvey}
+                  />
+                ))
+              )}
+            </Box>
+          );
+        })()}
 
         {/* Participant Chats Tab */}
         {tabValue === 1 && (
