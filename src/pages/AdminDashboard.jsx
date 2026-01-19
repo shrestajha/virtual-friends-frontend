@@ -1086,7 +1086,6 @@ export default function AdminDashboard({ user }) {
                       <TableRow>
                         <TableCell><strong>User Email</strong></TableCell>
                         <TableCell><strong>Assigned Agent</strong></TableCell>
-                        <TableCell><strong>Agent ID</strong></TableCell>
                         <TableCell><strong>EI/CI Levels</strong></TableCell>
                       </TableRow>
                     </TableHead>
@@ -1099,7 +1098,6 @@ export default function AdminDashboard({ user }) {
                               {assignment.agentName}
                             </Typography>
                           </TableCell>
-                          <TableCell>{assignment.agentId || 'N/A'}</TableCell>
                           <TableCell>
                             {assignment.eiCiCombination ? (
                               <Chip 
