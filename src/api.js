@@ -76,6 +76,9 @@ export const getMyCharacters = async () => {
 };
 // Get specific character details
 export const getCharacter = (characterId) => http("GET", `/characters/${characterId}`);
+// Get assigned characters from backend
+export const getAssignedCharacters = () => http("GET", "/characters/assigned");
+
 // Get multiple characters by their IDs
 export const getCharactersByIds = async (characterIds) => {
   if (!characterIds || characterIds.length === 0) return [];

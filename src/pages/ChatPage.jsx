@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getParticipant, addMessage } from '../api';
+import { getParticipant, addMessage, getAssignedCharacters } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
@@ -152,6 +152,42 @@ export default function ChatPage({ user }) {
       const errorMessage = error.message || 'Unknown error occurred';
       let userFriendlyMessage = 'Failed to load participant data.';
       
+      // Check if it's a 404 error - refresh character assignments
+      if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        console.log('404 error detected, refreshing character assignments...');
+        try {
+          // Call /characters/assigned to refresh character assignments
+          const assignedChars = await getAssignedCharacters();
+          console.log('Refreshed character assignments:', assignedChars);
+          
+          // Store updated character assignments
+          if (assignedChars && Array.isArray(assignedChars)) {
+            localStorage.setItem("assignedCharacters", JSON.stringify(assignedChars));
+          } else if (assignedChars && assignedChars.characters && Array.isArray(assignedChars.characters)) {
+            localStorage.setItem("assignedCharacters", JSON.stringify(assignedChars.characters));
+          }
+          
+          // Retry loading participant after refreshing assignments
+          console.log('Retrying participant load after refreshing assignments...');
+          const retryData = await getParticipant(user.email);
+          if (retryData) {
+            setParticipant(retryData);
+            if (retryData._id) {
+              localStorage.setItem('participantId', retryData._id);
+            }
+            if (retryData.characters && retryData.characters.length > 0 && !currentCharacterId) {
+              setCurrentCharacterId(retryData.characters[0].id);
+            }
+            checkAndShowSurvey(retryData);
+            setLoadingParticipant(false);
+            return retryData;
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh character assignments:', refreshError);
+          userFriendlyMessage = 'Character assignments not found. Please try logging in again.';
+        }
+      }
+      
       // Check if it's a 403 error - survey required
       if (errorMessage.includes('403') || errorMessage.includes('survey') || errorMessage.includes('Please complete')) {
         userFriendlyMessage = 'Please complete the signup survey before accessing chat features.';
@@ -243,6 +279,7 @@ export default function ChatPage({ user }) {
       // The backend may return show_survey, character_id, and character_name in the response
       if (updatedParticipant && updatedParticipant.show_survey === true) {
         console.log('Survey trigger detected in addMessage response');
+        // Use character_id from show_survey response (required by backend)
         const charId = updatedParticipant.character_id || currentCharacterId;
         const charName = updatedParticipant.character_name || 
           participant.characters?.find(c => 
@@ -254,6 +291,7 @@ export default function ChatPage({ user }) {
         // Only show survey if not already completed for this character
         if (!completedSurveys.has(String(charId))) {
           console.log('Opening survey for character:', charName, '(ID:', charId, ')');
+          // Store the character_id from show_survey response to use when submitting survey
           setSurveyCharacterId(charId);
           setSurveyCharacterName(charName);
           setSurveyOpen(true);
