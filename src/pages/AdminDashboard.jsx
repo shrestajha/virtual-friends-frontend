@@ -289,7 +289,11 @@ const ChatRow = ({ chat, type, onViewSurvey }) => {
         <TableCell>
           {type === 'user' ? chat.user_email : (chat.participant_email || 'No email')}
         </TableCell>
-        <TableCell>{agentName}</TableCell>
+        <TableCell>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {agentName}
+          </Typography>
+        </TableCell>
         <TableCell>
           {eiCiCombination ? (
             <Chip
@@ -1038,7 +1042,7 @@ export default function AdminDashboard({ user }) {
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
           <Tab label={`User Assignments`} />
           <Tab label={`Survey Responses`} />
-          <Tab label={`Participant Chats (${participant_chats?.length || 0})`} />
+          <Tab label={`Participant Chats`} />
           <Tab label={`Agents (${characters?.length || 0})`} />
         </Tabs>
 
@@ -1197,38 +1201,66 @@ export default function AdminDashboard({ user }) {
         })()}
 
         {/* Participant Chats Tab */}
-        {tabValue === 2 && (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="50px"></TableCell>
-                  <TableCell><strong>Participant Email</strong></TableCell>
-                  <TableCell><strong>Character</strong></TableCell>
-                  <TableCell><strong>EI/CI Levels</strong></TableCell>
-                  <TableCell><strong>Interactions</strong></TableCell>
-                  <TableCell><strong>Last Message</strong></TableCell>
-                  <TableCell><strong>Survey Status</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {!participant_chats || participant_chats.length === 0 ? (
+        {tabValue === 2 && (() => {
+          // Aggregate chats by user email to show only one row per user
+          const allChats = [...(user_chats || []), ...(participant_chats || [])];
+          const userChatMap = {};
+          
+          // Group chats by user email
+          allChats.forEach(chat => {
+            const email = chat.user_email || chat.participant_email || 'No email';
+            if (!userChatMap[email]) {
+              userChatMap[email] = [];
+            }
+            userChatMap[email].push(chat);
+          });
+          
+          // For each user, find their assigned agent (the one with interactions > 0, or first one)
+          const uniqueUserChats = Object.entries(userChatMap).map(([email, chats]) => {
+            // Sort chats by interactions (descending) to prioritize the one being used
+            const sortedChats = [...chats].sort((a, b) => {
+              const aInteractions = a.message_count || a.interactions || 0;
+              const bInteractions = b.message_count || b.interactions || 0;
+              return bInteractions - aInteractions;
+            });
+            
+            // Return the chat with the most interactions (the one being used)
+            return sortedChats[0];
+          });
+          
+          return (
+            <TableContainer>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                        No participant chats found
-                      </Typography>
-                    </TableCell>
+                    <TableCell width="50px"></TableCell>
+                    <TableCell><strong>Participant Email</strong></TableCell>
+                    <TableCell><strong>Assigned Agent</strong></TableCell>
+                    <TableCell><strong>EI/CI Levels</strong></TableCell>
+                    <TableCell><strong>Interactions</strong></TableCell>
+                    <TableCell><strong>Last Message</strong></TableCell>
+                    <TableCell><strong>Survey Status</strong></TableCell>
                   </TableRow>
-                ) : (
-                  participant_chats.map((chat, idx) => (
-                    <ChatRow key={idx} chat={chat} type="participant" onViewSurvey={handleViewSurvey} />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+                </TableHead>
+                <TableBody>
+                  {uniqueUserChats.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center">
+                        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                          No participant chats found
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    uniqueUserChats.map((chat, idx) => (
+                      <ChatRow key={idx} chat={chat} type="participant" onViewSurvey={handleViewSurvey} />
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          );
+        })()}
 
         {/* Agents Tab */}
         {tabValue === 3 && (

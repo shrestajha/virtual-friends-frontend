@@ -514,9 +514,9 @@ export default function ChatPage({ user }) {
         </Alert>
       )}
 
-      {/* Topic Display */}
+      {/* Topic Display - Collapsible */}
       {topicInfo && (
-        <Box sx={{ px: 2, pt: 2 }}>
+        <Box sx={{ px: 2, pt: 2, flexShrink: 0 }}>
           <TopicDisplay 
             topicInfo={topicInfo}
             currentTopic={currentTopic}
@@ -528,7 +528,7 @@ export default function ChatPage({ user }) {
 
       {/* Progress Indicator */}
       {currentTopic && (
-        <Paper elevation={1} sx={{ mx: 2, mb: 2, p: 2, bgcolor: '#f5f5f5' }}>
+        <Paper elevation={1} sx={{ mx: 2, mb: 2, p: 2, bgcolor: '#f5f5f5', flexShrink: 0 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Typography variant="body2">
               <strong>Current Topic:</strong> {currentTopic}/11
@@ -552,7 +552,7 @@ export default function ChatPage({ user }) {
       )}
 
       {/* Character Tabs / Selector */}
-      <Paper elevation={2} sx={{ borderRadius: 0 }}>
+      <Paper elevation={2} sx={{ borderRadius: 0, flexShrink: 0 }}>
         <Tabs
           value={currentCharacterId || false}
           onChange={handleTabChange}
@@ -606,7 +606,8 @@ export default function ChatPage({ user }) {
             mb: 1, 
             bgcolor: '#1976d2', 
             color: 'white',
-            borderRadius: 1
+            borderRadius: 1,
+            flexShrink: 0
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, textAlign: 'center' }}>
@@ -624,7 +625,9 @@ export default function ChatPage({ user }) {
           bgcolor: '#f5f5f5',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1
+          gap: 1,
+          minHeight: 0, // Important for flex children to allow scrolling
+          maxHeight: '100%' // Ensure it doesn't overflow
         }}
       >
         {chatHistory.length === 0 ? (
@@ -699,7 +702,7 @@ export default function ChatPage({ user }) {
       )}
 
       {/* Message Input: Sends participant messages */}
-      <Paper elevation={3} sx={{ p: 2, borderRadius: 0 }}>
+      <Paper elevation={3} sx={{ p: 2, borderRadius: 0, flexShrink: 0 }}>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
             inputRef={inputRef}
