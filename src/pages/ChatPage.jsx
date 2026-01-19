@@ -503,16 +503,18 @@ export default function ChatPage({ user }) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-      {/* Left Sidebar: Topic Information */}
+      {/* Left Sidebar: Topic Information - Narrower and positioned more to the left */}
       <Box 
         sx={{ 
-          width: '350px', 
+          width: '280px', 
           flexShrink: 0,
           borderRight: '1px solid #e0e0e0',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
-          bgcolor: '#fafafa'
+          bgcolor: '#fafafa',
+          marginLeft: '-20px', // Move it more to the left
+          paddingLeft: '20px' // Add padding to compensate
         }}
       >
         {/* Topic Advancement Message */}
@@ -590,8 +592,14 @@ export default function ChatPage({ user }) {
         )}
       </Box>
 
-      {/* Main Chat Area */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+      {/* Main Chat Area - Aligned with header content */}
+      <Box sx={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        minWidth: 0, 
+        overflow: 'hidden'
+      }}>
         {/* Character Tabs / Selector */}
         <Paper elevation={2} sx={{ borderRadius: 0, flexShrink: 0 }}>
           <Tabs
