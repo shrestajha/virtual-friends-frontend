@@ -48,7 +48,11 @@ export default function TopicDisplay({ topicInfo, currentTopic, topicsCompleted,
             bgcolor: '#fff', 
             borderRadius: '12px',
             boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-            border: '1px solid #e5e7eb'
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }
           }}
         >
           <Typography variant="body1" sx={{ lineHeight: 1.7, color: '#4b5563' }}>
@@ -68,7 +72,11 @@ export default function TopicDisplay({ topicInfo, currentTopic, topicsCompleted,
             bgcolor: '#fff', 
             borderRadius: '12px',
             boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-            border: '1px solid #e5e7eb'
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }
           }}
         >
           <Typography variant="body1" sx={{ lineHeight: 1.7, color: '#4b5563' }}>

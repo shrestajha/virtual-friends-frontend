@@ -503,16 +503,17 @@ export default function ChatPage({ user }) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-      {/* Left Sidebar: Topic Information - Fixed width ~300px */}
+      {/* Left Column: Topic Panel - Fixed width 280-320px, full height */}
       <Box 
         sx={{ 
           width: '300px', 
           flexShrink: 0,
-          borderRight: '1px solid #e0e0e0',
+          borderRight: '1px solid #e5e7eb',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
-          bgcolor: '#fafafa'
+          bgcolor: '#fafafa',
+          position: 'relative'
         }}
       >
         {/* Topic Advancement Message */}
@@ -620,16 +621,17 @@ export default function ChatPage({ user }) {
         )}
       </Box>
 
-      {/* Main Chat Area - Aligned with header content */}
+      {/* Right Column: Chat Area - Takes remaining width, centers chat */}
       <Box sx={{ 
         flex: 1, 
         display: 'flex', 
         flexDirection: 'column', 
         minWidth: 0, 
-        overflow: 'hidden'
+        overflow: 'hidden',
+        bgcolor: '#f9fafb'
       }}>
         {/* Character Tabs / Selector */}
-        <Paper elevation={2} sx={{ borderRadius: 0, flexShrink: 0 }}>
+        <Paper elevation={0} sx={{ borderRadius: 0, flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
           <Tabs
             value={currentCharacterId || false}
             onChange={handleTabChange}
@@ -671,20 +673,32 @@ export default function ChatPage({ user }) {
           </Tabs>
         </Paper>
 
-        {/* Chat Window: Displays chatHistory for the selected character */}
-        <Box 
-          sx={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            px: 3,
-            py: 2.5,
-            bgcolor: '#f9fafb',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            minHeight: 0, // Important for flex children to allow scrolling
-          }}
-        >
+        {/* Centered Chat Wrapper - max-width 720-800px, centered horizontally */}
+        <Box sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+          width: '100%',
+          maxWidth: '760px',
+          margin: '0 auto',
+          position: 'relative'
+        }}>
+          {/* Chat Window: Displays chatHistory for the selected character */}
+          <Box 
+            sx={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              px: 3,
+              py: 2.5,
+              bgcolor: '#f9fafb',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              minHeight: 0, // Important for flex children to allow scrolling
+            }}
+          >
         {chatHistory.length === 0 ? (
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4, lineHeight: 1.6 }}>
             Start a conversation with {currentCharacter?.name || 'your agent'} about the topic scenarios above!
@@ -755,28 +769,30 @@ export default function ChatPage({ user }) {
           <div ref={messagesEndRef} />
         </Box>
 
-        {/* Completion Message */}
-        {hasReachedLimit && !surveyUnlocked && (
-          <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: 1, mx: 2, mb: 1 }}>
-            <Typography variant="body2" align="center" color="text.secondary">
-              Completed – Survey available once all characters reach 7
-            </Typography>
-          </Paper>
-        )}
+          {/* Completion Message */}
+          {hasReachedLimit && !surveyUnlocked && (
+            <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
+              <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                Completed – Survey available once all characters reach 7
+              </Typography>
+            </Paper>
+          )}
 
-        {/* Message Input: Sends participant messages - Sticky at bottom */}
-        <Paper 
-          elevation={4} 
-          sx={{ 
-            p: 2, 
-            borderRadius: 0, 
-            flexShrink: 0, 
-            mx: 3, 
-            mb: 2,
-            bgcolor: '#fff',
-            boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)'
-          }}
-        >
+          {/* Message Input: Sends participant messages - Sticky at bottom, aligned with chat width */}
+          <Paper 
+            elevation={4} 
+            sx={{ 
+              p: 2, 
+              borderRadius: 0, 
+              flexShrink: 0, 
+              mx: 3, 
+              mb: 2,
+              bgcolor: '#fff',
+              boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)',
+              position: 'sticky',
+              bottom: 0
+            }}
+          >
           <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end' }}>
             <TextField
               inputRef={inputRef}
@@ -833,6 +849,7 @@ export default function ChatPage({ user }) {
             </Button>
           </Box>
         </Paper>
+        </Box>
 
         {/* Character Interaction Survey Dialog */}
         <CharacterInteractionSurvey
