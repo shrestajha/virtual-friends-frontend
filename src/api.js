@@ -168,6 +168,15 @@ export const me = async () => {
       localStorage.setItem("messageCountsPerCharacter", JSON.stringify(messageCounts));
     }
   }
+  // Store current_topic and topics_completed if present
+  if (typeof data.current_topic === 'number') {
+    localStorage.setItem("currentTopic", String(data.current_topic));
+  }
+  if (data.topics_completed) {
+    localStorage.setItem("topicsCompleted", typeof data.topics_completed === 'string' 
+      ? data.topics_completed 
+      : JSON.stringify(data.topics_completed));
+  }
   // Store survey_required field if present
   if (typeof data.survey_required === 'boolean') {
     // This will be stored in the user object in App.jsx
@@ -321,6 +330,11 @@ export const submitCharacterSurvey = (characterId, answers) =>
     q15_felt_realistic: answers.q15_felt_realistic,
     q16_engaged_seriously: answers.q16_engaged_seriously
   });
+
+// Topic APIs
+export const getCurrentTopic = () => http("GET", "/topics/current");
+export const completeTopic = (topicNumber) => 
+  http("POST", "/topics/complete", { topic_number: topicNumber });
 
 // Admin APIs
 export const getAdminDashboard = () => http("GET", "/admin/dashboard");

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getParticipant, addMessage, getAssignedCharacters } from '../api';
-import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab } from '@mui/material';
+import { getParticipant, addMessage, getAssignedCharacters, getCurrentTopic } from '../api';
+import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
+import TopicDisplay from '../components/TopicDisplay';
 
 export default function ChatPage({ user }) {
   // State Management
@@ -19,6 +20,14 @@ export default function ChatPage({ user }) {
   const [surveyCharacterId, setSurveyCharacterId] = useState(null);
   const [surveyCharacterName, setSurveyCharacterName] = useState('');
   const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
+  
+  // Topic state
+  const [currentTopic, setCurrentTopic] = useState(null);
+  const [topicInfo, setTopicInfo] = useState(null);
+  const [topicsCompleted, setTopicsCompleted] = useState([]);
+  const [canAdvance, setCanAdvance] = useState(false);
+  const [topicLoading, setTopicLoading] = useState(true);
+  const [topicAdvancementMessage, setTopicAdvancementMessage] = useState(null);
 
   // Check if any character has reached 7 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
@@ -60,12 +69,44 @@ export default function ChatPage({ user }) {
     }
   }, [completedSurveys]);
 
+  // Fetch current topic information
+  const loadCurrentTopic = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setTopicLoading(true);
+      const topicData = await getCurrentTopic();
+      console.log('Current topic data:', topicData);
+      
+      setCurrentTopic(topicData.current_topic);
+      setTopicInfo(topicData.topic_info);
+      
+      // Parse topics_completed (can be array or comma-separated string)
+      if (Array.isArray(topicData.topics_completed)) {
+        setTopicsCompleted(topicData.topics_completed);
+      } else if (typeof topicData.topics_completed === 'string' && topicData.topics_completed.trim()) {
+        const completed = topicData.topics_completed.split(',').map(t => parseInt(t.trim(), 10)).filter(t => !isNaN(t));
+        setTopicsCompleted(completed);
+      } else {
+        setTopicsCompleted([]);
+      }
+      
+      setCanAdvance(topicData.can_advance || false);
+    } catch (error) {
+      console.error('Failed to load current topic:', error);
+      // Don't show error to user, topics are optional
+    } finally {
+      setTopicLoading(false);
+    }
+  }, [user]);
+
   // On Load: Call getParticipant() (with auth token) to get or create participant data
   useEffect(() => {
     if (user) {
       loadParticipant();
+      loadCurrentTopic();
     }
-  }, [user]);
+  }, [user, loadCurrentTopic]);
 
   // Switch Character: Update currentCharacterId and render corresponding chatHistory
   useEffect(() => {
@@ -400,6 +441,40 @@ export default function ChatPage({ user }) {
     setCompletedSurveys(prev => new Set([...prev, String(characterId)]));
     console.log(`Survey completed for character ${characterId} (${characterName})`);
     
+    // Store previous topic to check if it advanced
+    const previousTopic = currentTopic;
+    
+    // Reload topic data to check if topic advanced
+    try {
+      const updatedTopicData = await getCurrentTopic();
+      console.log('Topic data after survey:', updatedTopicData);
+      
+      const newTopic = updatedTopicData.current_topic;
+      
+      // Check if topic advanced
+      if (newTopic > previousTopic) {
+        setTopicAdvancementMessage(`Topic ${previousTopic} completed! You've advanced to Topic ${newTopic}.`);
+        // Clear message after 5 seconds
+        setTimeout(() => setTopicAdvancementMessage(null), 5000);
+      }
+      
+      // Update topic state
+      setCurrentTopic(newTopic);
+      setTopicInfo(updatedTopicData.topic_info);
+      
+      // Parse topics_completed
+      if (Array.isArray(updatedTopicData.topics_completed)) {
+        setTopicsCompleted(updatedTopicData.topics_completed);
+      } else if (typeof updatedTopicData.topics_completed === 'string' && updatedTopicData.topics_completed.trim()) {
+        const completed = updatedTopicData.topics_completed.split(',').map(t => parseInt(t.trim(), 10)).filter(t => !isNaN(t));
+        setTopicsCompleted(completed);
+      }
+      
+      setCanAdvance(updatedTopicData.can_advance || false);
+    } catch (error) {
+      console.error('Failed to reload topic after survey:', error);
+    }
+    
     // Show success message
     alert(`Survey completed! Thank you for your feedback. You can continue chatting with ${characterName}.`);
     
@@ -415,6 +490,54 @@ export default function ChatPage({ user }) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Topic Advancement Message */}
+      {topicAdvancementMessage && (
+        <Alert 
+          severity="success" 
+          sx={{ mb: 2, mx: 2, mt: 2 }}
+          onClose={() => setTopicAdvancementMessage(null)}
+        >
+          {topicAdvancementMessage}
+        </Alert>
+      )}
+
+      {/* Topic Display */}
+      {topicInfo && (
+        <Box sx={{ px: 2, pt: 2 }}>
+          <TopicDisplay 
+            topicInfo={topicInfo}
+            currentTopic={currentTopic}
+            topicsCompleted={topicsCompleted}
+            canAdvance={canAdvance}
+          />
+        </Box>
+      )}
+
+      {/* Progress Indicator */}
+      {currentTopic && (
+        <Paper elevation={1} sx={{ mx: 2, mb: 2, p: 2, bgcolor: '#f5f5f5' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <Typography variant="body2">
+              <strong>Current Topic:</strong> {currentTopic}/11
+            </Typography>
+            <Typography variant="body2">
+              <strong>Completed Topics:</strong> {topicsCompleted.length}/11
+            </Typography>
+            <Typography variant="body2">
+              <strong>Interactions this topic:</strong> {currentCount}/7
+            </Typography>
+            <Typography variant="body2">
+              <strong>Survey Status:</strong>{' '}
+              {completedSurveys.has(String(currentCharacterId)) 
+                ? 'Completed' 
+                : currentCount >= 7 
+                  ? 'Available' 
+                  : 'Not Available'}
+            </Typography>
+          </Box>
+        </Paper>
+      )}
+
       {/* Character Tabs / Selector */}
       <Paper elevation={2} sx={{ borderRadius: 0 }}>
         <Tabs
