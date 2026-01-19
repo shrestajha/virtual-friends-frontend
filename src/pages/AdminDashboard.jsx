@@ -1036,13 +1036,103 @@ export default function AdminDashboard({ user }) {
       {/* Tabs for User Chats and Participant Chats */}
       <Paper>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
+          <Tab label={`User Assignments`} />
           <Tab label={`Survey Responses`} />
           <Tab label={`Participant Chats (${participant_chats?.length || 0})`} />
           <Tab label={`Agents (${characters?.length || 0})`} />
         </Tabs>
 
-        {/* Survey Responses Tab */}
+        {/* User Assignments Tab */}
         {tabValue === 0 && (() => {
+          // Aggregate user-agent assignments from both user_chats and participant_chats
+          const allChats = [...(user_chats || []), ...(participant_chats || [])];
+          const userAssignments = {};
+          
+          // Group by user email to get their assigned agent
+          allChats.forEach(chat => {
+            const email = chat.user_email || chat.participant_email || 'No email';
+            const agentNameField = chat.agent_name || chat.character_name;
+            
+            // Only set assignment if not already set (users have 1 agent, so first one found is the assigned one)
+            if (!userAssignments[email] && agentNameField) {
+              const parsed = parseAgentName(agentNameField);
+              userAssignments[email] = {
+                email: email,
+                agentName: parsed.agentName,
+                agentId: chat.character_id,
+                eiCiCombination: parsed.eiCiCombination,
+                eiLevel: parsed.eiLevel,
+                ciLevel: parsed.ciLevel
+              };
+            }
+          });
+          
+          const assignments = Object.values(userAssignments);
+          
+          return (
+            <Box sx={{ p: 2 }}>
+              {assignments.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                  No user assignments found
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>User Email</strong></TableCell>
+                        <TableCell><strong>Assigned Agent</strong></TableCell>
+                        <TableCell><strong>Agent ID</strong></TableCell>
+                        <TableCell><strong>EI/CI Levels</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {assignments.map((assignment, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{assignment.email}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                              {assignment.agentName}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{assignment.agentId || 'N/A'}</TableCell>
+                          <TableCell>
+                            {assignment.eiCiCombination ? (
+                              <Chip 
+                                label={assignment.eiCiCombination}
+                                size="small"
+                                sx={{
+                                  bgcolor: getLevelColor(assignment.eiCiCombination.split('/')[0]),
+                                  color: 'white',
+                                  fontWeight: 500
+                                }}
+                              />
+                            ) : assignment.eiLevel && assignment.ciLevel ? (
+                              <Chip 
+                                label={`${assignment.eiLevel}/${assignment.ciLevel}`}
+                                size="small"
+                                sx={{
+                                  bgcolor: getLevelColor(assignment.eiLevel),
+                                  color: 'white',
+                                  fontWeight: 500
+                                }}
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">N/A</Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          );
+        })()}
+
+        {/* Survey Responses Tab */}
+        {tabValue === 1 && (() => {
           // Aggregate survey data from both user_chats and participant_chats
           const allChats = [...(user_chats || []), ...(participant_chats || [])];
           const surveyByUser = {};
@@ -1107,7 +1197,7 @@ export default function AdminDashboard({ user }) {
         })()}
 
         {/* Participant Chats Tab */}
-        {tabValue === 1 && (
+        {tabValue === 2 && (
           <TableContainer>
             <Table>
               <TableHead>
@@ -1141,7 +1231,7 @@ export default function AdminDashboard({ user }) {
         )}
 
         {/* Agents Tab */}
-        {tabValue === 2 && (
+        {tabValue === 3 && (
           <TableContainer>
             <Table>
               <TableHead>

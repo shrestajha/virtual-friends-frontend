@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getParticipant, addMessage, getAssignedCharacters, getCurrentTopic } from '../api';
+import { getParticipant, addMessage, getAssignedCharacters, getCurrentTopic, sendChat } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
@@ -285,7 +285,7 @@ export default function ChatPage({ user }) {
     });
   };
 
-  // Send Message: Call POST /mongo/participants/message
+  // Send Message: Call POST /chat endpoint
   const handleSend = async () => {
     const text = input.trim();
     if (!text || !currentCharacterId || loading || !user || !participant) return;
@@ -305,48 +305,61 @@ export default function ChatPage({ user }) {
     setLoading(true);
 
     try {
+      // POST /chat - Send message to agent
+      const chatResponse = await sendChat(String(currentCharacterId), text);
+      console.log('Chat response:', chatResponse);
+      
+      // After sending via /chat, also update participant data to track interactions
       // Use email or stored participant ID (prefer stored ID if available for efficiency)
       const participantId = localStorage.getItem('participantId') || user.email || participant._id || participant.id;
       
-      if (!participantId) {
-        throw new Error('Participant ID is required');
-      }
-      
-      // POST /mongo/participants/message
-      // Use email or stored participant ID, character_id as string, sender as "participant"
-      const updatedParticipant = await addMessage(participantId, String(currentCharacterId), 'participant', text);
-      
-      // Check if response includes survey trigger information
-      // The backend may return show_survey, character_id, and character_name in the response
-      if (updatedParticipant && updatedParticipant.show_survey === true) {
-        console.log('Survey trigger detected in addMessage response');
-        // Use character_id from show_survey response (required by backend)
-        const charId = updatedParticipant.character_id || currentCharacterId;
-        const charName = updatedParticipant.character_name || 
-          participant.characters?.find(c => 
-            c.id === charId || 
-            c.id === String(charId) ||
-            String(c.id) === String(charId)
-          )?.name || 'this character';
-        
-        // Only show survey if not already completed for this character
-        if (!completedSurveys.has(String(charId))) {
-          console.log('Opening survey for character:', charName, '(ID:', charId, ')');
-          // Store the character_id from show_survey response to use when submitting survey
-          setSurveyCharacterId(charId);
-          setSurveyCharacterName(charName);
-          setSurveyOpen(true);
-        } else {
-          console.log('Survey already completed for character:', charName);
+      let updatedParticipant = null;
+      if (participantId) {
+        try {
+          // Update participant data to track interactions and get survey status
+          updatedParticipant = await addMessage(participantId, String(currentCharacterId), 'participant', text);
+        } catch (error) {
+          console.warn('Failed to update participant data, but chat message was sent:', error);
+          // Chat message was sent successfully, just reload participant data
+          updatedParticipant = await loadParticipant();
         }
+      } else {
+        // If no participant ID, just reload participant data
+        updatedParticipant = await loadParticipant();
       }
       
+      // Update participant data to track interactions and get survey status
       // Use the updated participant data from response, or reload if not returned
       if (updatedParticipant && updatedParticipant.characters) {
         setParticipant(updatedParticipant);
         // Update stored participant ID if returned
         if (updatedParticipant._id) {
           localStorage.setItem('participantId', updatedParticipant._id);
+        }
+        
+        // Check if response includes survey trigger information
+        // The backend may return show_survey, character_id, and character_name in the response
+        if (updatedParticipant.show_survey === true) {
+          console.log('Survey trigger detected in participant response');
+          // Use character_id from show_survey response (required by backend)
+          const charId = updatedParticipant.character_id || currentCharacterId;
+          const charName = updatedParticipant.character_name || 
+            updatedParticipant.characters?.find(c => 
+              c.id === charId || 
+              c.id === String(charId) ||
+              String(c.id) === String(charId)
+            )?.name || 'this character';
+          
+          // Only show survey if not already completed for this character
+          if (!completedSurveys.has(String(charId))) {
+            console.log('Opening survey for character:', charName, '(ID:', charId, ')');
+            // Store the character_id from show_survey response to use when submitting survey
+            setSurveyCharacterId(charId);
+            setSurveyCharacterName(charName);
+            setSurveyOpen(true);
+          } else {
+            console.log('Survey already completed for character:', charName);
+          }
         }
         
         // Check if all characters have reached 7 interactions and show survey
@@ -583,6 +596,25 @@ export default function ChatPage({ user }) {
 
       {/* Survey is now handled automatically via CharacterInteractionSurvey component */}
 
+      {/* Chat Header: Display Agent Name */}
+      {currentCharacter && (
+        <Paper 
+          elevation={1} 
+          sx={{ 
+            p: 1.5, 
+            mx: 2, 
+            mb: 1, 
+            bgcolor: '#1976d2', 
+            color: 'white',
+            borderRadius: 1
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, textAlign: 'center' }}>
+            Chatting with {currentCharacter.name}
+          </Typography>
+        </Paper>
+      )}
+
       {/* Chat Window: Displays chatHistory for the selected character */}
       <Box 
         sx={{ 
@@ -597,7 +629,7 @@ export default function ChatPage({ user }) {
       >
         {chatHistory.length === 0 ? (
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-            Start a conversation with {currentCharacter?.name || 'your character'}!
+            Start a conversation with {currentCharacter?.name || 'your agent'} about the topic scenarios above!
           </Typography>
         ) : (
           chatHistory.map((msg, idx) => (
