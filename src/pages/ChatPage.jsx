@@ -31,6 +31,8 @@ export default function ChatPage({ user }) {
 
   // Check if any character has reached 7 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
+    // Use currentCharacterId from state, not parameter
+    const currentCharId = currentCharacterId;
     if (!participantData || !participantData.characters) {
       console.log('checkAndShowSurvey: No participant data or characters');
       return;
@@ -45,6 +47,31 @@ export default function ChatPage({ user }) {
     });
     
     // Find the first character that has reached 7 interactions and hasn't completed its survey
+    // Prioritize the character the user is currently chatting with
+    const currentChar = characters.find(char => 
+      String(char.id) === String(currentCharacterId) ||
+      char.id === currentCharacterId
+    );
+    
+    // Check current character first if it exists
+    if (currentChar) {
+      const interactions = currentChar.interactions || 0;
+      const charId = String(currentChar.id);
+      const isCompleted = completedSurveys.has(charId);
+      const hasEnoughInteractions = interactions >= 7;
+      
+      console.log(`Current character ${currentChar.name} (${charId}): ${interactions} interactions, survey completed? ${isCompleted}`);
+      
+      if (hasEnoughInteractions && !isCompleted) {
+        console.log('Current character has 7 interactions! Showing survey for:', currentChar.name, '(ID:', charId, ')');
+        setSurveyCharacterId(charId);
+        setSurveyCharacterName(currentChar.name || 'this character');
+        setSurveyOpen(true);
+        return;
+      }
+    }
+    
+    // If current character doesn't need survey, check other characters
     const characterNeedingSurvey = characters.find(char => {
       const interactions = char.interactions || 0;
       const charId = String(char.id);
@@ -67,7 +94,7 @@ export default function ChatPage({ user }) {
     } else {
       console.log('No character needs survey yet (either not at 7 interactions or already completed)');
     }
-  }, [completedSurveys]);
+  }, [completedSurveys, currentCharacterId]);
 
   // Fetch current topic information
   const loadCurrentTopic = useCallback(async () => {
@@ -341,20 +368,46 @@ export default function ChatPage({ user }) {
         // The backend may return show_survey, character_id, and character_name in the response
         if (updatedParticipant.show_survey === true) {
           console.log('Survey trigger detected in participant response');
-          // Use character_id from show_survey response (required by backend)
-          const charId = updatedParticipant.character_id || currentCharacterId;
+          
+          // Validate character_id: Use the one from show_survey response, but verify it matches
+          // the character the user is actually chatting with. If there's a mismatch, use currentCharacterId.
+          let charId = updatedParticipant.character_id || currentCharacterId;
+          
+          // Check if the character_id from backend matches the current character being chatted with
+          const backendCharIdStr = String(updatedParticipant.character_id || '');
+          const currentCharIdStr = String(currentCharacterId || '');
+          
+          if (updatedParticipant.character_id && backendCharIdStr !== currentCharIdStr) {
+            console.warn(`Character ID mismatch: Backend returned ${updatedParticipant.character_id} (${updatedParticipant.character_name || 'unknown'}), but user is chatting with ${currentCharacterId}. Using currentCharacterId.`);
+            // Use the character the user is actually chatting with
+            charId = currentCharacterId;
+          }
+          
+          // Ensure charId is valid and exists in participant's characters
+          const validCharacter = updatedParticipant.characters?.find(c => 
+            String(c.id) === String(charId) || 
+            c.id === charId
+          );
+          
+          if (!validCharacter && charId) {
+            console.warn(`Character ID ${charId} not found in participant characters. Using currentCharacterId ${currentCharacterId} instead.`);
+            charId = currentCharacterId;
+          }
+          
           const charName = updatedParticipant.character_name || 
+            validCharacter?.name ||
             updatedParticipant.characters?.find(c => 
               c.id === charId || 
               c.id === String(charId) ||
               String(c.id) === String(charId)
-            )?.name || 'this character';
+            )?.name || 
+            'this character';
           
           // Only show survey if not already completed for this character
           if (!completedSurveys.has(String(charId))) {
             console.log('Opening survey for character:', charName, '(ID:', charId, ')');
-            // Store the character_id from show_survey response to use when submitting survey
-            setSurveyCharacterId(charId);
+            // Store the validated character_id to use when submitting survey
+            setSurveyCharacterId(String(charId));
             setSurveyCharacterName(charName);
             setSurveyOpen(true);
           } else {
