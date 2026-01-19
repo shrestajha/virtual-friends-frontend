@@ -578,47 +578,87 @@ export default function ChatPage({ user }) {
           </Paper>
         )}
 
-        {/* Character Info with Progress Indicator */}
-        {currentCharacter && (
-          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff', borderRadius: '12px' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
-              Your Agent
+        {/* Character Tabs / Selector - Moved to left sidebar in purple area */}
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            m: 2, 
+            mt: 1, 
+            bgcolor: '#faf5ff', 
+            borderRadius: '12px',
+            border: '1px solid #e9d5ff',
+            overflow: 'hidden'
+          }}
+        >
+          <Box sx={{ bgcolor: '#9333ea', p: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'white', textAlign: 'center' }}>
+              Select Agent
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 500, color: '#2563eb', mb: 1.5 }}>
-              {currentCharacter.name}
-            </Typography>
-            {/* Visual Progress Indicator */}
-            <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                <Typography variant="caption" color="text.secondary">
-                  Interactions
-                </Typography>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#2563eb' }}>
-                  {currentCount}/7
-                </Typography>
-              </Box>
-              <Box
-                sx={{
-                  width: '100%',
-                  height: '8px',
-                  bgcolor: '#e5e7eb',
-                  borderRadius: '4px',
-                  overflow: 'hidden'
-                }}
-              >
-                <Box
+          </Box>
+          <Tabs
+            value={currentCharacterId || false}
+            onChange={handleTabChange}
+            orientation="vertical"
+            variant="fullWidth"
+            sx={{
+              '& .MuiTabs-indicator': {
+                left: 0,
+                width: '4px',
+                bgcolor: '#9333ea'
+              },
+              '& .MuiTab-root': {
+                minHeight: '72px',
+                alignItems: 'flex-start',
+                paddingLeft: 2,
+                textTransform: 'none',
+                borderBottom: '1px solid #f3e8ff'
+              }
+            }}
+          >
+            {characters.map((char) => {
+              // Backend returns 'interactions' field
+              const count = char.interactions || 0;
+              const isCompleted = count >= 7;
+              const isSelected = currentCharacterId === char.id;
+              return (
+                <Tab
+                  key={char.id}
+                  value={char.id}
+                  label={
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontWeight: isSelected ? 600 : 400,
+                          color: isSelected ? '#9333ea' : '#4b5563'
+                        }}
+                      >
+                        {char.name}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: isCompleted ? '#16a34a' : 'text.secondary',
+                          fontSize: '0.7rem',
+                          mt: 0.5
+                        }}
+                      >
+                        {count}/7
+                      </Typography>
+                    </Box>
+                  }
                   sx={{
-                    width: `${(currentCount / 7) * 100}%`,
-                    height: '100%',
-                    bgcolor: currentCount >= 7 ? '#10b981' : '#2563eb',
-                    borderRadius: '4px',
-                    transition: 'width 0.3s ease'
+                    opacity: isCompleted ? 0.7 : 1,
+                    bgcolor: isSelected ? '#faf5ff' : 'transparent',
+                    '&:hover': {
+                      bgcolor: '#faf5ff'
+                    }
                   }}
                 />
-              </Box>
-            </Box>
-          </Paper>
-        )}
+              );
+            })}
+          </Tabs>
+        </Paper>
       </Box>
 
       {/* Right Column: Chat Area - Takes remaining width, centers chat */}
@@ -630,49 +670,6 @@ export default function ChatPage({ user }) {
         overflow: 'hidden',
         bgcolor: '#f9fafb'
       }}>
-        {/* Character Tabs / Selector */}
-        <Paper elevation={0} sx={{ borderRadius: 0, flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
-          <Tabs
-            value={currentCharacterId || false}
-            onChange={handleTabChange}
-            variant="fullWidth"
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
-          >
-            {characters.map((char) => {
-              // Backend returns 'interactions' field
-              const count = char.interactions || 0;
-              const isCompleted = count >= 7;
-              return (
-                <Tab
-                  key={char.id}
-                  value={char.id}
-                  label={
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <Typography variant="body2" sx={{ fontWeight: currentCharacterId === char.id ? 600 : 400 }}>
-                        {char.name}
-                      </Typography>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: isCompleted ? '#16a34a' : 'text.secondary',
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        {count}/7
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{
-                    textTransform: 'none',
-                    minHeight: 72,
-                    opacity: isCompleted ? 0.7 : 1
-                  }}
-                />
-              );
-            })}
-          </Tabs>
-        </Paper>
-
         {/* Centered Chat Wrapper - max-width 720-800px, centered horizontally */}
         <Box sx={{
           flex: 1,
