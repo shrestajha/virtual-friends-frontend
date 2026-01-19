@@ -502,134 +502,152 @@ export default function ChatPage({ user }) {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Topic Advancement Message */}
-      {topicAdvancementMessage && (
-        <Alert 
-          severity="success" 
-          sx={{ mb: 2, mx: 2, mt: 2 }}
-          onClose={() => setTopicAdvancementMessage(null)}
-        >
-          {topicAdvancementMessage}
-        </Alert>
-      )}
-
-      {/* Topic Display - Collapsible */}
-      {topicInfo && (
-        <Box sx={{ px: 2, pt: 2, flexShrink: 0 }}>
-          <TopicDisplay 
-            topicInfo={topicInfo}
-            currentTopic={currentTopic}
-            topicsCompleted={topicsCompleted}
-            canAdvance={canAdvance}
-          />
-        </Box>
-      )}
-
-      {/* Progress Indicator */}
-      {currentTopic && (
-        <Paper elevation={1} sx={{ mx: 2, mb: 2, p: 2, bgcolor: '#f5f5f5', flexShrink: 0 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <Typography variant="body2">
-              <strong>Current Topic:</strong> {currentTopic}/11
-            </Typography>
-            <Typography variant="body2">
-              <strong>Completed Topics:</strong> {topicsCompleted.length}/11
-            </Typography>
-            <Typography variant="body2">
-              <strong>Interactions this topic:</strong> {currentCount}/7
-            </Typography>
-            <Typography variant="body2">
-              <strong>Survey Status:</strong>{' '}
-              {completedSurveys.has(String(currentCharacterId)) 
-                ? 'Completed' 
-                : currentCount >= 7 
-                  ? 'Available' 
-                  : 'Not Available'}
-            </Typography>
-          </Box>
-        </Paper>
-      )}
-
-      {/* Character Tabs / Selector */}
-      <Paper elevation={2} sx={{ borderRadius: 0, flexShrink: 0 }}>
-        <Tabs
-          value={currentCharacterId || false}
-          onChange={handleTabChange}
-          variant="fullWidth"
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
-        >
-          {characters.map((char) => {
-            // Backend returns 'interactions' field
-            const count = char.interactions || 0;
-            const isCompleted = count >= 7;
-            return (
-              <Tab
-                key={char.id}
-                value={char.id}
-                label={
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography variant="body2" sx={{ fontWeight: currentCharacterId === char.id ? 600 : 400 }}>
-                      {char.name}
-                    </Typography>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ 
-                        color: isCompleted ? '#16a34a' : 'text.secondary',
-                        fontSize: '0.7rem'
-                      }}
-                    >
-                      {count}/7
-                    </Typography>
-                  </Box>
-                }
-                sx={{
-                  textTransform: 'none',
-                  minHeight: 72,
-                  opacity: isCompleted ? 0.7 : 1
-                }}
-              />
-            );
-          })}
-        </Tabs>
-      </Paper>
-
-      {/* Survey is now handled automatically via CharacterInteractionSurvey component */}
-
-      {/* Chat Header: Display Agent Name */}
-      {currentCharacter && (
-        <Paper 
-          elevation={1} 
-          sx={{ 
-            p: 1.5, 
-            mx: 2, 
-            mb: 1, 
-            bgcolor: '#1976d2', 
-            color: 'white',
-            borderRadius: 1,
-            flexShrink: 0
-          }}
-        >
-          <Typography variant="h6" sx={{ fontWeight: 600, textAlign: 'center' }}>
-            Chatting with {currentCharacter.name}
-          </Typography>
-        </Paper>
-      )}
-
-      {/* Chat Window: Displays chatHistory for the selected character */}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+      {/* Left Sidebar: Topic Information */}
       <Box 
         sx={{ 
-          flex: 1, 
-          overflowY: 'auto', 
-          p: 2, 
-          bgcolor: '#f5f5f5',
+          width: '350px', 
+          flexShrink: 0,
+          borderRight: '1px solid #e0e0e0',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,
-          minHeight: 0, // Important for flex children to allow scrolling
-          maxHeight: '100%' // Ensure it doesn't overflow
+          overflowY: 'auto',
+          bgcolor: '#fafafa'
         }}
       >
+        {/* Topic Advancement Message */}
+        {topicAdvancementMessage && (
+          <Alert 
+            severity="success" 
+            sx={{ m: 2, mb: 1 }}
+            onClose={() => setTopicAdvancementMessage(null)}
+          >
+            {topicAdvancementMessage}
+          </Alert>
+        )}
+
+        {/* Topic Display */}
+        {topicInfo && (
+          <Box sx={{ p: 2, pb: 1 }}>
+            <TopicDisplay 
+              topicInfo={topicInfo}
+              currentTopic={currentTopic}
+              topicsCompleted={topicsCompleted}
+              canAdvance={canAdvance}
+            />
+          </Box>
+        )}
+
+        {/* Progress Indicator */}
+        {currentTopic && (
+          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
+              Progress
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Current Topic</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {currentTopic}/11
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Completed Topics</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {topicsCompleted.length}/11
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Interactions This Topic</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {currentCount}/7
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">Survey Status</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {completedSurveys.has(String(currentCharacterId)) 
+                    ? 'Completed' 
+                    : currentCount >= 7 
+                      ? 'Available' 
+                      : 'Not Available'}
+                </Typography>
+              </Box>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Character Info */}
+        {currentCharacter && (
+          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              Your Agent
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 500, color: '#1976d2' }}>
+              {currentCharacter.name}
+            </Typography>
+          </Paper>
+        )}
+      </Box>
+
+      {/* Main Chat Area */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        {/* Character Tabs / Selector */}
+        <Paper elevation={2} sx={{ borderRadius: 0, flexShrink: 0 }}>
+          <Tabs
+            value={currentCharacterId || false}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            {characters.map((char) => {
+              // Backend returns 'interactions' field
+              const count = char.interactions || 0;
+              const isCompleted = count >= 7;
+              return (
+                <Tab
+                  key={char.id}
+                  value={char.id}
+                  label={
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ fontWeight: currentCharacterId === char.id ? 600 : 400 }}>
+                        {char.name}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: isCompleted ? '#16a34a' : 'text.secondary',
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        {count}/7
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{
+                    textTransform: 'none',
+                    minHeight: 72,
+                    opacity: isCompleted ? 0.7 : 1
+                  }}
+                />
+              );
+            })}
+          </Tabs>
+        </Paper>
+
+        {/* Chat Window: Displays chatHistory for the selected character */}
+        <Box 
+          sx={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            p: 3, 
+            bgcolor: '#f5f5f5',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            minHeight: 0, // Important for flex children to allow scrolling
+          }}
+        >
         {chatHistory.length === 0 ? (
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
             Start a conversation with {currentCharacter?.name || 'your agent'} about the topic scenarios above!
@@ -689,58 +707,59 @@ export default function ChatPage({ user }) {
             </Paper>
           </Box>
         )}
-        <div ref={messagesEndRef} />
-      </Box>
-
-      {/* Completion Message */}
-      {hasReachedLimit && !surveyUnlocked && (
-        <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: 0 }}>
-          <Typography variant="body2" align="center" color="text.secondary">
-            Completed – Survey available once all characters reach 7
-          </Typography>
-        </Paper>
-      )}
-
-      {/* Message Input: Sends participant messages */}
-      <Paper elevation={3} sx={{ p: 2, borderRadius: 0, flexShrink: 0 }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <TextField
-            inputRef={inputRef}
-            fullWidth
-            multiline
-            maxRows={4}
-            placeholder={
-              hasReachedLimit 
-                ? "You have reached the interaction limit for this character" 
-                : "Type your message... (Press Enter to send)"
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={loading || hasReachedLimit}
-            variant="outlined"
-            size="small"
-            autoFocus
-          />
-          <Button
-            variant="contained"
-            onClick={handleSend}
-            disabled={!input.trim() || loading || hasReachedLimit}
-            startIcon={<SendIcon />}
-          >
-            Send
-          </Button>
+          <div ref={messagesEndRef} />
         </Box>
-      </Paper>
 
-      {/* Character Interaction Survey Dialog */}
-      <CharacterInteractionSurvey
-        characterId={surveyCharacterId}
-        characterName={surveyCharacterName}
-        open={surveyOpen}
-        onClose={() => setSurveyOpen(false)}
-        onComplete={handleSurveyComplete}
-      />
+        {/* Completion Message */}
+        {hasReachedLimit && !surveyUnlocked && (
+          <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: 1, mx: 2, mb: 1 }}>
+            <Typography variant="body2" align="center" color="text.secondary">
+              Completed – Survey available once all characters reach 7
+            </Typography>
+          </Paper>
+        )}
+
+        {/* Message Input: Sends participant messages */}
+        <Paper elevation={3} sx={{ p: 2, borderRadius: 0, flexShrink: 0, mx: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              inputRef={inputRef}
+              fullWidth
+              multiline
+              maxRows={4}
+              placeholder={
+                hasReachedLimit 
+                  ? "You have reached the interaction limit for this character" 
+                  : "Type your message... (Press Enter to send)"
+              }
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading || hasReachedLimit}
+              variant="outlined"
+              size="small"
+              autoFocus
+            />
+            <Button
+              variant="contained"
+              onClick={handleSend}
+              disabled={!input.trim() || loading || hasReachedLimit}
+              startIcon={<SendIcon />}
+            >
+              Send
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Character Interaction Survey Dialog */}
+        <CharacterInteractionSurvey
+          characterId={surveyCharacterId}
+          characterName={surveyCharacterName}
+          open={surveyOpen}
+          onClose={() => setSurveyOpen(false)}
+          onComplete={handleSurveyComplete}
+        />
+      </Box>
     </Box>
   );
 }

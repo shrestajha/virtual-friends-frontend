@@ -31,7 +31,7 @@ export default function CharacterForm({ onCreated }) {
     <form onSubmit={submit} className="panel" style={{padding: 20}}>
       <div className="label" style={{ marginBottom: 16 }}>Create a Character</div>
       <div style={{display:'grid', gap:16}}>
-        <div>
+          <div>
           <input 
             className="input" 
             placeholder="Character name" 
@@ -39,8 +39,8 @@ export default function CharacterForm({ onCreated }) {
             onChange={e=>setName(e.target.value)} 
             required 
           />
-        </div>
-        <div>
+          </div>
+          <div>
           <textarea 
             className="textarea" 
             rows={4} 
