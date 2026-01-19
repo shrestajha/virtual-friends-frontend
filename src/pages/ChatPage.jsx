@@ -503,18 +503,16 @@ export default function ChatPage({ user }) {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-      {/* Left Sidebar: Topic Information - Narrower and positioned more to the left */}
+      {/* Left Sidebar: Topic Information - Fixed width ~300px */}
       <Box 
         sx={{ 
-          width: '280px', 
+          width: '300px', 
           flexShrink: 0,
           borderRight: '1px solid #e0e0e0',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
-          bgcolor: '#fafafa',
-          marginLeft: '-20px', // Move it more to the left
-          paddingLeft: '20px' // Add padding to compensate
+          bgcolor: '#fafafa'
         }}
       >
         {/* Topic Advancement Message */}
@@ -579,15 +577,45 @@ export default function ChatPage({ user }) {
           </Paper>
         )}
 
-        {/* Character Info */}
+        {/* Character Info with Progress Indicator */}
         {currentCharacter && (
-          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff', borderRadius: '12px' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
               Your Agent
             </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 500, color: '#1976d2' }}>
+            <Typography variant="body1" sx={{ fontWeight: 500, color: '#2563eb', mb: 1.5 }}>
               {currentCharacter.name}
             </Typography>
+            {/* Visual Progress Indicator */}
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Interactions
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#2563eb' }}>
+                  {currentCount}/7
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  width: '100%',
+                  height: '8px',
+                  bgcolor: '#e5e7eb',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}
+              >
+                <Box
+                  sx={{
+                    width: `${(currentCount / 7) * 100}%`,
+                    height: '100%',
+                    bgcolor: currentCount >= 7 ? '#10b981' : '#2563eb',
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease'
+                  }}
+                />
+              </Box>
+            </Box>
           </Paper>
         )}
       </Box>
@@ -648,71 +676,80 @@ export default function ChatPage({ user }) {
           sx={{ 
             flex: 1, 
             overflowY: 'auto', 
-            p: 3, 
-            bgcolor: '#f5f5f5',
+            px: 3,
+            py: 2.5,
+            bgcolor: '#f9fafb',
             display: 'flex',
             flexDirection: 'column',
-            gap: 1.5,
+            gap: 2,
             minHeight: 0, // Important for flex children to allow scrolling
           }}
         >
         {chatHistory.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
+          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4, lineHeight: 1.6 }}>
             Start a conversation with {currentCharacter?.name || 'your agent'} about the topic scenarios above!
           </Typography>
         ) : (
-          chatHistory.map((msg, idx) => (
-            <Box
-              key={idx}
-              sx={{
-                display: 'flex',
-                justifyContent: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? 'flex-end' : 'flex-start',
-                mb: 1
-              }}
-            >
-              <Paper
-                elevation={1}
+          chatHistory.map((msg, idx) => {
+            const isUser = msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user';
+            return (
+              <Box
+                key={idx}
                 sx={{
-                  p: 1.5,
-                  maxWidth: '70%',
-                  bgcolor: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? '#1976d2' : '#e0e0e0',
-                  color: (msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user') ? 'white' : 'black',
-                  borderRadius: 2
+                  display: 'flex',
+                  justifyContent: isUser ? 'flex-end' : 'flex-start',
+                  mb: 0.5
                 }}
               >
-                <Typography variant="body1">{msg.message || msg.content}</Typography>
-                {(msg.timestamp || msg.created_at) && (
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      display: 'block', 
-                      mt: 0.5, 
-                      opacity: 0.7,
-                      fontSize: '0.7rem'
-                    }}
-                  >
-                    {new Date(msg.timestamp || msg.created_at).toLocaleTimeString()}
+                <Box
+                  sx={{
+                    p: 2,
+                    maxWidth: '65%',
+                    bgcolor: isUser ? '#2563eb' : '#f3f4f6',
+                    color: isUser ? 'white' : '#1f2937',
+                    borderRadius: '16px',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                    lineHeight: 1.6
+                  }}
+                >
+                  <Typography variant="body1" sx={{ lineHeight: 1.6, wordBreak: 'break-word' }}>
+                    {msg.message || msg.content}
                   </Typography>
-                )}
-              </Paper>
-            </Box>
-          ))
+                  {(msg.timestamp || msg.created_at) && (
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        display: 'block', 
+                        mt: 0.75, 
+                        opacity: isUser ? 0.8 : 0.6,
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {new Date(msg.timestamp || msg.created_at).toLocaleTimeString()}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            );
+          })
         )}
         
         {loading && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <Paper
-              elevation={1}
+            <Box
               sx={{
-                p: 1.5,
-                bgcolor: '#e0e0e0',
-                borderRadius: 2
+                p: 2,
+                maxWidth: '65%',
+                bgcolor: '#f3f4f6',
+                color: '#1f2937',
+                borderRadius: '16px',
+                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
               }}
             >
-              <Typography variant="body2" sx={{ opacity: 0.6 }}>
+              <Typography variant="body2" sx={{ opacity: 0.6, lineHeight: 1.6 }}>
                 Thinking...
               </Typography>
-            </Paper>
+            </Box>
           </Box>
         )}
           <div ref={messagesEndRef} />
@@ -727,9 +764,20 @@ export default function ChatPage({ user }) {
           </Paper>
         )}
 
-        {/* Message Input: Sends participant messages */}
-        <Paper elevation={3} sx={{ p: 2, borderRadius: 0, flexShrink: 0, mx: 2, mb: 2 }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* Message Input: Sends participant messages - Sticky at bottom */}
+        <Paper 
+          elevation={4} 
+          sx={{ 
+            p: 2, 
+            borderRadius: 0, 
+            flexShrink: 0, 
+            mx: 3, 
+            mb: 2,
+            bgcolor: '#fff',
+            boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}
+        >
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-end' }}>
             <TextField
               inputRef={inputRef}
               fullWidth
@@ -745,7 +793,21 @@ export default function ChatPage({ user }) {
               onKeyPress={handleKeyPress}
               disabled={loading || hasReachedLimit}
               variant="outlined"
-              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  minHeight: '48px',
+                  '& fieldset': {
+                    borderColor: '#e5e7eb',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#d1d5db',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#2563eb',
+                  },
+                },
+              }}
               autoFocus
             />
             <Button
@@ -753,6 +815,19 @@ export default function ChatPage({ user }) {
               onClick={handleSend}
               disabled={!input.trim() || loading || hasReachedLimit}
               startIcon={<SendIcon />}
+              sx={{
+                minHeight: '48px',
+                borderRadius: '12px',
+                px: 3,
+                bgcolor: '#2563eb',
+                '&:hover': {
+                  bgcolor: '#1d4ed8',
+                },
+                '&:disabled': {
+                  bgcolor: '#e5e7eb',
+                  color: '#9ca3af',
+                },
+              }}
             >
               Send
             </Button>

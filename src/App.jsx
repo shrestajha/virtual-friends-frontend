@@ -810,37 +810,62 @@ export default function App() {
           position: "sticky",
           top: 0,
           zIndex: 1000,
-          backgroundColor: "var(--bg, #fff)"
+          backgroundColor: "var(--bg, #fff)",
+          borderBottom: "1px solid #e5e7eb",
+          padding: "12px 24px"
         }}>
-          <div className="brand" style={{ marginRight: "auto" }}>
+          <div className="brand" style={{ marginRight: "auto", fontWeight: 500 }}>
             Welcome, {user?.email || "User"}
           </div>
-          {hasAdminAccess(user) && (
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {hasAdminAccess(user) && (
+              <button
+                className="button small"
+                onClick={() => {
+                  window.history.pushState({}, "", "/admin");
+                  setView("admin");
+                }}
+                style={{ 
+                  marginRight: 0,
+                  backgroundColor: "#f3f4f6",
+                  color: "#4b5563",
+                  border: "1px solid #e5e7eb",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  minHeight: "36px"
+                }}
+              >
+                Admin Dashboard
+              </button>
+            )}
             <button
               className="button small"
               onClick={() => {
-                window.history.pushState({}, "", "/admin");
-                setView("admin");
+                logout();
+                setUser(null);
+                setView("start");
+                setMessageCountsPerCharacter({});
+                setCharacters([]);
+                setSelected(null);
+                localStorage.removeItem("user");
               }}
-              style={{ marginRight: "8px" }}
+              style={{
+                backgroundColor: "#2563eb",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: 500,
+                minHeight: "36px",
+                cursor: "pointer"
+              }}
             >
-              Admin Dashboard
+              Logout
             </button>
-          )}
-          <button
-            className="button small"
-            onClick={() => {
-              logout();
-              setUser(null);
-              setView("start");
-              setMessageCountsPerCharacter({});
-              setCharacters([]);
-              setSelected(null);
-              localStorage.removeItem("user");
-            }}
-          >
-            Logout
-          </button>
+          </div>
         </div>
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <ChatPage 
