@@ -44,7 +44,8 @@ export default function ChatPage({ user }) {
   const [scenarioBCompleted, setScenarioBCompleted] = useState(false); // Track if Scenario B survey completed
 
   // Check if any character has reached 7 interactions and show survey for that character
-  const checkAndShowSurvey = useCallback((participantData) => {
+  // Check and show survey - changed to regular function to avoid circular dependency
+  const checkAndShowSurvey = (participantData) => {
     // Use currentCharacterId from state, not parameter
     const currentCharId = currentCharacterId;
     if (!participantData || !participantData.characters) {
@@ -108,7 +109,7 @@ export default function ChatPage({ user }) {
     } else {
       console.log('No character needs survey yet (either not at 7 interactions or already completed)');
     }
-  }, [completedSurveys, currentCharacterId]);
+  };
 
   // Fetch current topic information - use regular function to avoid circular dependency issues
   const loadCurrentTopic = async () => {
@@ -642,7 +643,8 @@ export default function ChatPage({ user }) {
   };
 
   // Load user data from /auth/me (assigned agent, current topic, interaction count)
-  const loadUserData = useCallback(async () => {
+  // Changed to regular function to avoid circular dependency issues
+  const loadUserData = async () => {
     if (!user) {
       console.log('loadUserData: No user provided');
       setLoadingParticipant(false);
@@ -765,11 +767,12 @@ export default function ChatPage({ user }) {
     } finally {
       setLoadingParticipant(false);
     }
-  }, [user]);
+  };
 
   // On Load: Load user data and topic info
   useEffect(() => {
     if (user) {
+      // Call functions directly - they're now regular functions, not useCallback
       loadUserData().catch(err => {
         console.error('Error in loadUserData:', err);
         setLoadingParticipant(false); // Ensure loading state is cleared on error
@@ -778,7 +781,8 @@ export default function ChatPage({ user }) {
         console.error('Error in loadCurrentTopic:', err);
       });
     }
-  }, [user]); // Remove loadUserData and loadCurrentTopic from dependencies to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Only depend on user, functions are stable
 
   // Set currentCharacterId when assignedAgentId is set (for backward compatibility)
   useEffect(() => {
