@@ -225,8 +225,15 @@ export default function ChatPage({ user }) {
       // Update participant state to include both messages immediately
       setParticipant(prev => {
         if (!prev) {
+          const newHistory = [autoMessage, agentResponse];
+          // Sort by timestamp to ensure correct order
+          newHistory.sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            return timeA - timeB; // Ascending order
+          });
           return {
-            chatHistory: [autoMessage, agentResponse],
+            chatHistory: newHistory,
             characters: []
           };
         }
@@ -237,9 +244,17 @@ export default function ChatPage({ user }) {
         );
         if (alreadyExists) return prev;
         
+        const newHistory = [...existingHistory, autoMessage, agentResponse];
+        // Sort by timestamp to ensure correct order
+        newHistory.sort((a, b) => {
+          const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+          const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+          return timeA - timeB; // Ascending order
+        });
+        
         return {
           ...prev,
-          chatHistory: [...existingHistory, autoMessage, agentResponse]
+          chatHistory: newHistory
         };
       });
       
@@ -516,10 +531,17 @@ export default function ChatPage({ user }) {
                   String(c.character_id) === String(agentId)
                 );
                 if (assignedChar) {
+                  const chatHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+                  // Sort chat history by timestamp (ascending - oldest first)
+                  const sortedHistory = [...chatHistory].sort((a, b) => {
+                    const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                    const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                    return timeA - timeB; // Ascending order
+                  });
                   setParticipant({
                     ...data,
                     assignedCharacter: assignedChar,
-                    chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+                    chatHistory: sortedHistory
                   });
                 } else {
                   setParticipant(data);
@@ -821,9 +843,11 @@ export default function ChatPage({ user }) {
     
     // Use chatHistory directly if stored, otherwise look in characters array
     if (participant.chatHistory && Array.isArray(participant.chatHistory)) {
+      // Sort by timestamp in ascending order (oldest first, newest last)
       return [...participant.chatHistory].sort((a, b) => {
         const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
         const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+        // Return ascending order: oldest messages first, newest at bottom
         return timeA - timeB;
       });
     }
@@ -841,10 +865,11 @@ export default function ChatPage({ user }) {
     // Backend returns: character.chatHistory array with { sender, message, timestamp }
     const chatHistory = character.chatHistory || character.chat_history || character.messages || [];
     
-    // Backend already returns messages ordered by timestamp, but sort to be safe
+    // Sort by timestamp in ascending order (oldest first, newest last)
     return [...chatHistory].sort((a, b) => {
       const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
       const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+      // Return ascending order: oldest messages first, newest at bottom
       return timeA - timeB;
     });
   };
@@ -901,15 +926,29 @@ export default function ChatPage({ user }) {
       // Update chat history immediately so messages stay visible
       setParticipant(prev => {
         if (!prev) {
+          const newHistory = [userMessage, agentMessage];
+          // Sort by timestamp to ensure correct order
+          newHistory.sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            return timeA - timeB; // Ascending order
+          });
           return {
-            chatHistory: [userMessage, agentMessage],
+            chatHistory: newHistory,
             characters: []
           };
         }
         const existingHistory = prev.chatHistory || [];
+        const newHistory = [...existingHistory, userMessage, agentMessage];
+        // Sort by timestamp to ensure correct order
+        newHistory.sort((a, b) => {
+          const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+          const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+          return timeA - timeB; // Ascending order
+        });
         return {
           ...prev,
-          chatHistory: [...existingHistory, userMessage, agentMessage]
+          chatHistory: newHistory
         };
       });
       
@@ -958,12 +997,18 @@ export default function ChatPage({ user }) {
               );
               if (assignedChar) {
                 const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
-                // Merge backend history with current history (backend has the source of truth)
+                // Sort backend history by timestamp (ascending - oldest first)
+                const sortedBackendHistory = [...backendHistory].sort((a, b) => {
+                  const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                  const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                  return timeA - timeB; // Ascending order
+                });
+                // Use backend history as source of truth (already sorted)
                 setParticipant(prev => ({
                   ...(prev || {}),
                   ...data,
                   assignedCharacter: assignedChar,
-                  chatHistory: backendHistory // Use backend history as source of truth
+                  chatHistory: sortedBackendHistory
                 }));
               }
             }
@@ -1008,11 +1053,17 @@ export default function ChatPage({ user }) {
               );
               if (assignedChar) {
                 const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+                // Sort backend history by timestamp (ascending - oldest first)
+                const sortedBackendHistory = [...backendHistory].sort((a, b) => {
+                  const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                  const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                  return timeA - timeB; // Ascending order
+                });
                 setParticipant(prev => ({
                   ...(prev || {}),
                   ...data,
                   assignedCharacter: assignedChar,
-                  chatHistory: backendHistory
+                  chatHistory: sortedBackendHistory
                 }));
               }
             }
