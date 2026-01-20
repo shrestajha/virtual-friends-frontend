@@ -191,14 +191,36 @@ export default function ChatPage({ user }) {
       });
       
       // Reload chat history from backend after a short delay
+      // Note: loadParticipant may not be available yet, so we'll reload via getParticipant
       setTimeout(async () => {
-        await loadParticipant(assignedAgentId);
+        try {
+          const participantId = localStorage.getItem('participantId') || user?.email;
+          if (participantId && assignedAgentId) {
+            const data = await getParticipant(participantId);
+            if (data && data.characters) {
+              const assignedChar = data.characters.find(c => 
+                String(c.id) === String(assignedAgentId) || 
+                String(c.character_id) === String(assignedAgentId)
+              );
+              if (assignedChar) {
+                setParticipant(prev => ({
+                  ...(prev || {}),
+                  ...data,
+                  assignedCharacter: assignedChar,
+                  chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+                }));
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to reload chat history:', err);
+        }
       }, 500);
     } catch (error) {
       console.error('Failed to auto-send scenario:', error);
       // Don't block UI if auto-send fails
     }
-  }, [topicInfo, assignedAgentId, currentScenario, scenarioAutoSent, loading, loadParticipant]);
+  }, [topicInfo, assignedAgentId, currentScenario, scenarioAutoSent, loading, user]);
   
   // Auto-send scenario when topic loads and scenario is set
   useEffect(() => {
@@ -279,14 +301,38 @@ export default function ChatPage({ user }) {
         }
       }
       
-      // Load chat history for assigned agent
+      // Load chat history for assigned agent (loadParticipant will be defined later)
       if (agentId) {
-        try {
-          await loadParticipant(agentId);
-        } catch (participantError) {
-          console.error('Failed to load participant data:', participantError);
-          // Don't block UI if participant load fails
-        }
+        // We'll load participant data after loadParticipant is defined
+        // Store agentId for later use
+        setTimeout(async () => {
+          try {
+            const participantId = localStorage.getItem('participantId') || user.email;
+            if (participantId) {
+              const data = await getParticipant(participantId);
+              if (data && data.characters) {
+                const assignedChar = data.characters.find(c => 
+                  String(c.id) === String(agentId) || 
+                  String(c.character_id) === String(agentId)
+                );
+                if (assignedChar) {
+                  setParticipant({
+                    ...data,
+                    assignedCharacter: assignedChar,
+                    chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+                  });
+                } else {
+                  setParticipant(data);
+                }
+              } else {
+                setParticipant(data);
+              }
+            }
+          } catch (participantError) {
+            console.error('Failed to load participant data:', participantError);
+            // Don't block UI if participant load fails
+          }
+        }, 100);
       } else {
         console.warn('No agent ID found in user data');
       }
@@ -297,7 +343,7 @@ export default function ChatPage({ user }) {
     } finally {
       setLoadingParticipant(false);
     }
-  }, [user, loadParticipant]);
+  }, [user]);
 
   // On Load: Load user data and topic info
   useEffect(() => {
