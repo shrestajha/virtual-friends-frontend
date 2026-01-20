@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getParticipant, addMessage, getAssignedCharacters, getCurrentTopic, sendChat } from '../api';
+import { getParticipant, getAssignedCharacters, getCurrentTopic, sendChat, me, getCharacterSurveyStatus } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
@@ -7,8 +7,11 @@ import TopicDisplay from '../components/TopicDisplay';
 
 export default function ChatPage({ user }) {
   // State Management
-  const [participant, setParticipant] = useState(null); // Stores all 3 characters and their chat histories
-  const [currentCharacterId, setCurrentCharacterId] = useState(null); // Tracks which character's chat is displayed
+  const [participant, setParticipant] = useState(null); // Stores chat history and interaction counts
+  const [assignedAgent, setAssignedAgent] = useState(null); // Assigned agent from /auth/me (one agent per user)
+  const [assignedAgentId, setAssignedAgentId] = useState(null); // Character ID of assigned agent
+  const [interactionCount, setInteractionCount] = useState(0); // Interaction count from /auth/me (message_count)
+  const [currentCharacterId, setCurrentCharacterId] = useState(null); // For backward compatibility
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingParticipant, setLoadingParticipant] = useState(true);
@@ -20,6 +23,7 @@ export default function ChatPage({ user }) {
   const [surveyCharacterId, setSurveyCharacterId] = useState(null);
   const [surveyCharacterName, setSurveyCharacterName] = useState('');
   const [completedSurveys, setCompletedSurveys] = useState(new Set()); // Track completed survey character IDs
+  const [surveyAvailable, setSurveyAvailable] = useState(false); // Survey availability from status endpoint
   
   // Topic state
   const [currentTopic, setCurrentTopic] = useState(null);
@@ -127,21 +131,88 @@ export default function ChatPage({ user }) {
     }
   }, [user]);
 
-  // On Load: Call getParticipant() (with auth token) to get or create participant data
+  // Load user data from /auth/me (assigned agent, current topic, interaction count)
+  const loadUserData = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingParticipant(true);
+      console.log('Loading user data from /auth/me...');
+      const userData = await me();
+      console.log('User data from /auth/me:', userData);
+      
+      // Extract assigned agent (one agent per user)
+      // Backend should return characters array with assigned agent, or character_id directly
+      let agent = null;
+      let agentId = null;
+      
+      if (userData.characters && Array.isArray(userData.characters) && userData.characters.length > 0) {
+        // Use first character as assigned agent (one agent per user)
+        agent = userData.characters[0];
+        agentId = agent.id || agent.character_id;
+      } else if (userData.character_id) {
+        // Backend returns character_id directly
+        agentId = userData.character_id;
+        agent = { id: agentId, name: userData.character_name || `Agent ${agentId}` };
+      } else if (userData.character_ids && Array.isArray(userData.character_ids) && userData.character_ids.length > 0) {
+        // Backend returns character_ids array
+        agentId = userData.character_ids[0];
+        agent = { id: agentId, name: `Agent ${agentId}` };
+      }
+      
+      if (agentId) {
+        setAssignedAgent(agent);
+        setAssignedAgentId(String(agentId));
+        setCurrentCharacterId(String(agentId)); // For backward compatibility
+        
+        // Extract interaction count (message_count from userData or character)
+        const count = agent?.message_count || agent?.interactions || userData.message_count || userData.interaction_count || 0;
+        setInteractionCount(count);
+        console.log(`Assigned agent: ${agent.name} (ID: ${agentId}), interactions: ${count}`);
+      }
+      
+      // Extract current topic from /auth/me
+      if (typeof userData.current_topic === 'number') {
+        setCurrentTopic(userData.current_topic);
+        console.log(`Current topic: ${userData.current_topic}`);
+      }
+      
+      // Extract topics completed
+      if (userData.topics_completed) {
+        if (Array.isArray(userData.topics_completed)) {
+          setTopicsCompleted(userData.topics_completed);
+        } else if (typeof userData.topics_completed === 'string' && userData.topics_completed.trim()) {
+          const completed = userData.topics_completed.split(',').map(t => parseInt(t.trim(), 10)).filter(t => !isNaN(t));
+          setTopicsCompleted(completed);
+        }
+      }
+      
+      // Load chat history for assigned agent
+      if (agentId) {
+        await loadParticipant(agentId);
+      }
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      alert('Failed to load user data. Please try refreshing the page.');
+    } finally {
+      setLoadingParticipant(false);
+    }
+  }, [user]);
+
+  // On Load: Load user data and topic info
   useEffect(() => {
     if (user) {
-      loadParticipant();
+      loadUserData();
       loadCurrentTopic();
     }
-  }, [user, loadCurrentTopic]);
+  }, [user, loadUserData, loadCurrentTopic]);
 
-  // Switch Character: Update currentCharacterId and render corresponding chatHistory
+  // Set currentCharacterId when assignedAgentId is set (for backward compatibility)
   useEffect(() => {
-    if (participant?.characters && participant.characters.length > 0 && !currentCharacterId) {
-      // Select first character by default
-      setCurrentCharacterId(participant.characters[0].id);
+    if (assignedAgentId && !currentCharacterId) {
+      setCurrentCharacterId(String(assignedAgentId));
     }
-  }, [participant, currentCharacterId]);
+  }, [assignedAgentId, currentCharacterId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -150,14 +221,21 @@ export default function ChatPage({ user }) {
     }
   }, [participant, currentCharacterId]);
 
-  // Check for survey eligibility when participant data changes
+  // Check for survey eligibility when interaction count changes
   useEffect(() => {
-    if (participant && participant.characters && participant.characters.length > 0) {
-      checkAndShowSurvey(participant);
+    if (assignedAgentId && interactionCount >= 7) {
+      checkAndShowSurvey();
     }
-  }, [participant, checkAndShowSurvey]);
+  }, [assignedAgentId, interactionCount, checkAndShowSurvey]);
 
-  const loadParticipant = async () => {
+  // Load participant data (chat history) for the assigned agent
+  const loadParticipant = async (characterId) => {
+    // Use provided characterId or fall back to assignedAgentId
+    const charId = characterId || assignedAgentId;
+    if (!charId) {
+      console.log('loadParticipant: No character ID provided');
+      return null;
+    }
     try {
       setLoadingParticipant(true);
       // Use user's email as participant_id
@@ -182,7 +260,9 @@ export default function ChatPage({ user }) {
         throw new Error('User email is required to load participant');
       }
       
-      console.log('Loading participant for email:', user.email);
+      console.log('Loading chat history for character:', charId);
+      // Load participant data to get chat history
+      // Note: This may return multiple characters, but we only use the assigned agent's data
       const data = await getParticipant(user.email);
       console.log('Participant data loaded:', data);
       
@@ -197,15 +277,35 @@ export default function ChatPage({ user }) {
         console.log('Stored participant ID:', data._id);
       }
       
-      setParticipant(data);
-      
-      // Select first character if available
-      if (data.characters && data.characters.length > 0 && !currentCharacterId) {
-        setCurrentCharacterId(data.characters[0].id);
+      // Extract chat history for the assigned agent
+      // Backend returns characters array, find the one matching our assigned agent
+      if (data.characters && Array.isArray(data.characters)) {
+        const assignedChar = data.characters.find(c => 
+          String(c.id) === String(charId) || 
+          String(c.character_id) === String(charId)
+        );
+        
+        if (assignedChar) {
+          // Update interaction count from participant data if available
+          const count = assignedChar.interactions || assignedChar.interaction_count || interactionCount;
+          if (count !== interactionCount) {
+            console.log(`Updating interaction count from participant data: ${count}`);
+            setInteractionCount(count);
+          }
+          
+          // Store participant data with chat history
+          setParticipant({
+            ...data,
+            assignedCharacter: assignedChar,
+            chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+          });
+        } else {
+          // Assigned agent not found in participant data, store what we have
+          setParticipant(data);
+        }
+      } else {
+        setParticipant(data);
       }
-      
-      // Check if survey should be shown after loading
-      checkAndShowSurvey(data);
       
       return data;
     } catch (error) {
@@ -289,15 +389,26 @@ export default function ChatPage({ user }) {
     }
   };
 
-  // Get chat history for current character
+  // Get chat history for assigned agent
   const getCurrentChatHistory = () => {
-    if (!participant || !currentCharacterId) return [];
+    if (!participant) return [];
     
-    const character = participant.characters?.find(c => 
-      c.id === currentCharacterId || 
-      c.id === String(currentCharacterId) ||
-      String(c.id) === String(currentCharacterId)
-    );
+    // Use chatHistory directly if stored, otherwise look in characters array
+    if (participant.chatHistory && Array.isArray(participant.chatHistory)) {
+      return [...participant.chatHistory].sort((a, b) => {
+        const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+        const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+        return timeA - timeB;
+      });
+    }
+    
+    // Fallback: look in assignedCharacter or characters array
+    const character = participant.assignedCharacter || 
+      (participant.characters && participant.characters.find(c => 
+        String(c.id) === String(assignedAgentId) || 
+        String(c.id) === String(currentCharacterId)
+      ));
+    
     if (!character) return [];
     
     // Get chat history for this character (from backend structure)
@@ -315,114 +426,46 @@ export default function ChatPage({ user }) {
   // Send Message: Call POST /chat endpoint
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !currentCharacterId || loading || !user || !participant) return;
-
-    const character = participant.characters?.find(c => 
-      c.id === currentCharacterId || 
-      c.id === String(currentCharacterId) ||
-      String(c.id) === String(currentCharacterId)
-    );
-    const currentCount = character?.interactions || character?.interaction_count || 0;
+    const charId = assignedAgentId || currentCharacterId;
+    if (!text || !charId || loading || !user) return;
     
-    if (currentCount >= 7) {
-      return; // Already at limit
+    // Check interaction limit (7 interactions per topic)
+    if (interactionCount >= 7) {
+      alert('You have reached the interaction limit for this topic. Please complete the survey to advance.');
+      return;
     }
 
     setInput('');
     setLoading(true);
 
     try {
-      // POST /chat - Send message to agent
-      const chatResponse = await sendChat(String(currentCharacterId), text);
+      // POST /chat - Send message to assigned agent
+      const chatResponse = await sendChat(String(charId), text);
       console.log('Chat response:', chatResponse);
       
-      // After sending via /chat, also update participant data to track interactions
-      // Use email or stored participant ID (prefer stored ID if available for efficiency)
-      const participantId = localStorage.getItem('participantId') || user.email || participant._id || participant.id;
+      // Increment interaction count locally
+      const newCount = interactionCount + 1;
+      setInteractionCount(newCount);
       
-      let updatedParticipant = null;
-      if (participantId) {
-        try {
-          // Update participant data to track interactions and get survey status
-          updatedParticipant = await addMessage(participantId, String(currentCharacterId), 'participant', text);
-        } catch (error) {
-          console.warn('Failed to update participant data, but chat message was sent:', error);
-          // Chat message was sent successfully, just reload participant data
-          updatedParticipant = await loadParticipant();
-        }
-      } else {
-        // If no participant ID, just reload participant data
-        updatedParticipant = await loadParticipant();
-      }
-      
-      // Update participant data to track interactions and get survey status
-      // Use the updated participant data from response, or reload if not returned
-      if (updatedParticipant && updatedParticipant.characters) {
-        setParticipant(updatedParticipant);
-        // Update stored participant ID if returned
-        if (updatedParticipant._id) {
-          localStorage.setItem('participantId', updatedParticipant._id);
-        }
+      // Reload user data from /auth/me to get updated interaction count and check survey status
+      try {
+        const userData = await me();
+        const count = userData.message_count || 
+          (userData.characters && userData.characters[0]?.message_count) || 
+          newCount;
+        setInteractionCount(count);
         
-        // Check if response includes survey trigger information
-        // The backend may return show_survey, character_id, and character_name in the response
-        if (updatedParticipant.show_survey === true) {
-          console.log('Survey trigger detected in participant response');
-          
-          // Validate character_id: Use the one from show_survey response, but verify it matches
-          // the character the user is actually chatting with. If there's a mismatch, use currentCharacterId.
-          let charId = updatedParticipant.character_id || currentCharacterId;
-          
-          // Check if the character_id from backend matches the current character being chatted with
-          const backendCharIdStr = String(updatedParticipant.character_id || '');
-          const currentCharIdStr = String(currentCharacterId || '');
-          
-          if (updatedParticipant.character_id && backendCharIdStr !== currentCharIdStr) {
-            console.warn(`Character ID mismatch: Backend returned ${updatedParticipant.character_id} (${updatedParticipant.character_name || 'unknown'}), but user is chatting with ${currentCharacterId}. Using currentCharacterId.`);
-            // Use the character the user is actually chatting with
-            charId = currentCharacterId;
-          }
-          
-          // Ensure charId is valid and exists in participant's characters
-          const validCharacter = updatedParticipant.characters?.find(c => 
-            String(c.id) === String(charId) || 
-            c.id === charId
-          );
-          
-          if (!validCharacter && charId) {
-            console.warn(`Character ID ${charId} not found in participant characters. Using currentCharacterId ${currentCharacterId} instead.`);
-            charId = currentCharacterId;
-          }
-          
-          const charName = updatedParticipant.character_name || 
-            validCharacter?.name ||
-            updatedParticipant.characters?.find(c => 
-              c.id === charId || 
-              c.id === String(charId) ||
-              String(c.id) === String(charId)
-            )?.name || 
-            'this character';
-          
-          // Only show survey if not already completed for this character
-          if (!completedSurveys.has(String(charId))) {
-            console.log('Opening survey for character:', charName, '(ID:', charId, ')');
-            // Store the validated character_id to use when submitting survey
-            setSurveyCharacterId(String(charId));
-            setSurveyCharacterName(charName);
-            setSurveyOpen(true);
-          } else {
-            console.log('Survey already completed for character:', charName);
-          }
-        }
+        // Reload chat history
+        await loadParticipant(charId);
         
-        // Check if all characters have reached 7 interactions and show survey
-        checkAndShowSurvey(updatedParticipant);
-      } else {
-        // Fallback: reload participant data to get updated chat history and interaction counts
-        const reloadedParticipant = await loadParticipant();
-        if (reloadedParticipant) {
-          checkAndShowSurvey(reloadedParticipant);
+        // Check if survey should be shown (when count reaches 7)
+        if (count >= 7) {
+          await checkAndShowSurvey();
         }
+      } catch (error) {
+        console.warn('Failed to reload user data after message, but message was sent:', error);
+        // Message was sent successfully, just reload participant for chat history
+        await loadParticipant(charId);
       }
       
       // Survey is now handled via show_survey flag in addMessage response OR by checking interactions
@@ -465,11 +508,6 @@ export default function ChatPage({ user }) {
     }
   };
 
-  // Switch Character: Update currentCharacterId
-  const handleTabChange = (event, newValue) => {
-    setCurrentCharacterId(newValue);
-  };
-
   if (loadingParticipant) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -478,28 +516,26 @@ export default function ChatPage({ user }) {
     );
   }
 
-  if (!participant || !participant.characters || participant.characters.length === 0) {
+  // Check if we have the assigned agent
+  if (!assignedAgentId || !assignedAgent) {
     return (
       <Box p={3}>
         <Typography variant="h6" color="error">
-          No participant data found. Please contact support.
+          No assigned agent found. Please contact support.
         </Typography>
       </Box>
     );
   }
 
-  const characters = participant.characters || [];
-  const currentCharacter = characters.find(c => 
-    c.id === currentCharacterId || 
-    c.id === String(currentCharacterId) ||
-    String(c.id) === String(currentCharacterId)
-  );
   const chatHistory = getCurrentChatHistory();
-  // Backend returns 'interactions' field
-  const currentCount = currentCharacter?.interactions || 0;
+  // Use interaction count from /auth/me
+  const currentCount = interactionCount;
   const hasReachedLimit = currentCount >= 7;
-  // Backend returns 'surveyUnlocked' field (camelCase)
-  const surveyUnlocked = participant.surveyUnlocked === true || participant.survey_unlocked === true;
+  // Use assigned agent (one agent per user)
+  const currentCharacter = assignedAgent || { 
+    id: assignedAgentId, 
+    name: assignedAgent?.name || `Agent ${assignedAgentId}` 
+  };
 
   // Handle survey completion
   const handleSurveyComplete = async (characterId, characterName) => {
@@ -510,43 +546,72 @@ export default function ChatPage({ user }) {
     // Store previous topic to check if it advanced
     const previousTopic = currentTopic;
     
-    // Reload topic data to check if topic advanced
+    // Reload user data from /auth/me to get updated topic and interaction count (should reset to 0)
     try {
+      const userData = await me();
+      console.log('User data after survey:', userData);
+      
+      // Update assigned agent if changed
+      if (userData.characters && Array.isArray(userData.characters) && userData.characters.length > 0) {
+        const agent = userData.characters[0];
+        const agentId = String(agent.id || agent.character_id);
+        setAssignedAgent(agent);
+        setAssignedAgentId(agentId);
+        setCurrentCharacterId(agentId);
+        
+        // Interaction count should reset to 0 after survey
+        const count = agent?.message_count || agent?.interactions || 0;
+        setInteractionCount(count);
+        console.log(`Interaction count reset to: ${count}`);
+      }
+      
+      // Update current topic (should advance to next topic)
+      if (typeof userData.current_topic === 'number') {
+        const newTopic = userData.current_topic;
+        setCurrentTopic(newTopic);
+        
+        // Check if topic advanced
+        if (previousTopic && newTopic > previousTopic) {
+          setTopicAdvancementMessage(`Topic ${previousTopic} completed! You've advanced to Topic ${newTopic}.`);
+          // Clear message after 5 seconds
+          setTimeout(() => setTopicAdvancementMessage(null), 5000);
+        }
+      }
+      
+      // Update topics completed
+      if (userData.topics_completed) {
+        if (Array.isArray(userData.topics_completed)) {
+          setTopicsCompleted(userData.topics_completed);
+        } else if (typeof userData.topics_completed === 'string' && userData.topics_completed.trim()) {
+          const completed = userData.topics_completed.split(',').map(t => parseInt(t.trim(), 10)).filter(t => !isNaN(t));
+          setTopicsCompleted(completed);
+        }
+      }
+      
+      // Reload topic details from /topics/current
       const updatedTopicData = await getCurrentTopic();
       console.log('Topic data after survey:', updatedTopicData);
       
-      const newTopic = updatedTopicData.current_topic;
-      
-      // Check if topic advanced
-      if (newTopic > previousTopic) {
-        setTopicAdvancementMessage(`Topic ${previousTopic} completed! You've advanced to Topic ${newTopic}.`);
-        // Clear message after 5 seconds
-        setTimeout(() => setTopicAdvancementMessage(null), 5000);
+      if (updatedTopicData.topic_info) {
+        setTopicInfo(updatedTopicData.topic_info);
       }
-      
-      // Update topic state
-      setCurrentTopic(newTopic);
-      setTopicInfo(updatedTopicData.topic_info);
-      
-      // Parse topics_completed
-      if (Array.isArray(updatedTopicData.topics_completed)) {
-        setTopicsCompleted(updatedTopicData.topics_completed);
-      } else if (typeof updatedTopicData.topics_completed === 'string' && updatedTopicData.topics_completed.trim()) {
-        const completed = updatedTopicData.topics_completed.split(',').map(t => parseInt(t.trim(), 10)).filter(t => !isNaN(t));
-        setTopicsCompleted(completed);
-      }
-      
       setCanAdvance(updatedTopicData.can_advance || false);
+      
+      // Reload chat history (preserved, but interaction count reset)
+      const agentId = assignedAgentId || userData.characters?.[0]?.id;
+      if (agentId) {
+        await loadParticipant(String(agentId));
+      }
+      
+      // Show success message
+      alert(`Survey completed! Thank you for your feedback. You can continue chatting with ${characterName}.`);
     } catch (error) {
-      console.error('Failed to reload topic after survey:', error);
+      console.error('Failed to reload data after survey:', error);
+      alert('Survey completed! Reloading your data...');
+      // Fallback: reload everything
+      await loadUserData();
+      await loadCurrentTopic();
     }
-    
-    // Show success message
-    alert(`Survey completed! Thank you for your feedback. You can continue chatting with ${characterName}.`);
-    
-    // Reload participant data to get updated interaction counts (should be reset to 0)
-    // Chat history will remain visible as it's preserved in the backend
-    await loadParticipant();
     
     // Refocus input field so user can continue chatting
     setTimeout(() => {
@@ -631,87 +696,47 @@ export default function ChatPage({ user }) {
           </Paper>
         )}
 
-        {/* Character Tabs / Selector - Moved to left sidebar in purple area */}
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            m: 2, 
-            mt: 1, 
-            bgcolor: '#faf5ff', 
-            borderRadius: '12px',
-            border: '1px solid #e9d5ff',
-            overflow: 'hidden'
-          }}
-        >
-          <Box sx={{ bgcolor: '#9333ea', p: 1.5 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'white', textAlign: 'center' }}>
-              Select Agent
-            </Typography>
-          </Box>
-          <Tabs
-            value={currentCharacterId || false}
-            onChange={handleTabChange}
-            orientation="vertical"
-            variant="fullWidth"
-            sx={{
-              '& .MuiTabs-indicator': {
-                left: 0,
-                width: '4px',
-                bgcolor: '#9333ea'
-              },
-              '& .MuiTab-root': {
-                minHeight: '72px',
-                alignItems: 'flex-start',
-                paddingLeft: 2,
-                textTransform: 'none',
-                borderBottom: '1px solid #f3e8ff'
-              }
+        {/* Assigned Agent Info - Display only (one agent per user) */}
+        {assignedAgent && (
+          <Paper 
+            elevation={0} 
+            sx={{ 
+              m: 2, 
+              mt: 1, 
+              bgcolor: '#faf5ff', 
+              borderRadius: '12px',
+              border: '1px solid #e9d5ff',
+              overflow: 'hidden'
             }}
           >
-            {characters.map((char) => {
-              // Backend returns 'interactions' field
-              const count = char.interactions || 0;
-              const isCompleted = count >= 7;
-              const isSelected = currentCharacterId === char.id;
-              return (
-                <Tab
-                  key={char.id}
-                  value={char.id}
-                  label={
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          fontWeight: isSelected ? 600 : 400,
-                          color: isSelected ? '#9333ea' : '#4b5563'
-                        }}
-                      >
-                        {char.name}
-                      </Typography>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: isCompleted ? '#16a34a' : 'text.secondary',
-                          fontSize: '0.7rem',
-                          mt: 0.5
-                        }}
-                      >
-                        {count}/7
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{
-                    opacity: isCompleted ? 0.7 : 1,
-                    bgcolor: isSelected ? '#faf5ff' : 'transparent',
-                    '&:hover': {
-                      bgcolor: '#faf5ff'
-                    }
-                  }}
-                />
-              );
-            })}
-          </Tabs>
-        </Paper>
+            <Box sx={{ bgcolor: '#9333ea', p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'white', textAlign: 'center' }}>
+                Your Agent
+              </Typography>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#9333ea',
+                  mb: 1
+                }}
+              >
+                {assignedAgent.name || `Agent ${assignedAgentId}`}
+              </Typography>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: interactionCount >= 7 ? '#16a34a' : 'text.secondary',
+                  fontSize: '0.75rem'
+                }}
+              >
+                {interactionCount}/7 interactions
+              </Typography>
+            </Box>
+          </Paper>
+        )}
       </Box>
 
       {/* Right Column: Chat Area - Takes remaining width, centers chat */}
@@ -820,10 +845,10 @@ export default function ChatPage({ user }) {
         </Box>
 
           {/* Completion Message */}
-          {hasReachedLimit && !surveyUnlocked && (
+          {hasReachedLimit && !surveyAvailable && !completedSurveys.has(String(assignedAgentId)) && (
             <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
               <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                Completed – Survey available once all characters reach 7
+                You've completed 7 interactions! Please complete the survey to advance to the next topic.
               </Typography>
             </Paper>
           )}
