@@ -830,16 +830,8 @@ export default function ChatPage({ user }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedAgentId, assignedAgent?.name, user?.email]); // Include assignedAgent.name for proper matching
-            if (retryData._id) {
-              localStorage.setItem('participantId', retryData._id);
-            }
-            if (retryData.characters && retryData.characters.length > 0 && !currentCharacterId) {
-              setCurrentCharacterId(retryData.characters[0].id);
-            }
-            checkAndShowSurvey(retryData);
-            setLoadingParticipant(false);
-            return retryData;
-          }
+
+  // Get chat history for assigned agent
   const getCurrentChatHistory = () => {
     if (!participant) {
       console.error('[CHATBOX ERROR] ❌ No participant data available. Cannot display chat history.');
@@ -1248,7 +1240,7 @@ export default function ChatPage({ user }) {
   // This prevents blank page if there's a delay in loading
   const displayAgent = assignedAgent || { 
     id: assignedAgentId || user?.characters?.[0]?.id, 
-    name: user?.characters?.[0]?.name || `Agent ${assignedAgentId || user?.characters?.[0]?.id || 'Unknown'}` 
+    name: user?.characters?.[0]?.name || `Agent ${assignedAgentId || user?.characters?.[0]?.id || 'Unknown'}`
   };
   const displayAgentId = assignedAgentId || user?.characters?.[0]?.id;
   
