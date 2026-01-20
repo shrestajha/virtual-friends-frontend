@@ -998,20 +998,46 @@ export default function ChatPage({ user }) {
                 sx={{ 
                   fontWeight: 600,
                   color: '#9333ea',
-                  mb: 1
+                  mb: 1.5
                 }}
               >
                 {assignedAgent.name || `Agent ${assignedAgentId}`}
               </Typography>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: interactionCount >= 7 ? '#16a34a' : 'text.secondary',
-                  fontSize: '0.75rem'
-                }}
-              >
-                {interactionCount}/7 interactions
-              </Typography>
+              {currentScenario ? (
+                <Box>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      fontSize: '0.75rem',
+                      display: 'block',
+                      mb: 0.5
+                    }}
+                  >
+                    Scenario {currentScenario} Interactions
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      fontWeight: 600,
+                      color: (currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions) >= 7 ? '#16a34a' : '#9333ea',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    {currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions}/7
+                  </Typography>
+                </Box>
+              ) : (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: 'text.secondary',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  Select a scenario to start
+                </Typography>
+              )}
             </Box>
           </Paper>
         )}
