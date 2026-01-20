@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getParticipant, getAssignedCharacters, getCurrentTopic, sendChat, me, getCharacterSurveyStatus, selectScenario, initializeScenario, getChatHistory } from '../api';
 import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
@@ -798,7 +798,7 @@ export default function ChatPage({ user }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
     return () => clearTimeout(timer);
-  }, [chatHistory, loading]);
+  }, [loading]);
 
 
   // Check for survey eligibility when scenario interaction count reaches 7
@@ -832,7 +832,7 @@ export default function ChatPage({ user }) {
     checkSurveyAvailability();
   }, [assignedAgentId, currentScenario, scenarioAInteractions, scenarioBInteractions, scenarioACompleted, scenarioBCompleted]);
     // Use provided characterId or fall back to assignedAgentId
-    const charId = characterId || assignedAgentId;
+    const charId = assignedAgentId;
     if (!charId) {
       console.log('loadParticipant: No character ID provided');
       return null;
@@ -864,7 +864,7 @@ export default function ChatPage({ user }) {
       console.log('Loading chat history for character:', charId);
       // Load participant data to get chat history
       // Note: This may return multiple characters, but we only use the assigned agent's data
-      const data = await getParticipant(user.email);
+      const data = getParticipant(user.email);
       console.log('Participant data loaded:', data);
       
       // Validate response structure
@@ -976,7 +976,7 @@ export default function ChatPage({ user }) {
         console.log('404 error detected, refreshing character assignments...');
         try {
           // Call /characters/assigned to refresh character assignments
-          const assignedChars = await getAssignedCharacters();
+          const assignedChars = getAssignedCharacters();
           console.log('Refreshed character assignments:', assignedChars);
           
           // Store updated character assignments
@@ -988,7 +988,7 @@ export default function ChatPage({ user }) {
           
           // Retry loading participant after refreshing assignments
           console.log('Retrying participant load after refreshing assignments...');
-          const retryData = await getParticipant(user.email);
+          const retryData = getParticipant(user.email);
           if (retryData) {
             setParticipant(retryData);
             if (retryData._id) {
@@ -1090,7 +1090,7 @@ export default function ChatPage({ user }) {
     }
     
     // Check if survey is required (mandatory before proceeding)
-    const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+    const scenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
     const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
     
     if (isCompleted) {
@@ -1099,7 +1099,7 @@ export default function ChatPage({ user }) {
     }
     
     // Check if survey is available but not completed - make it mandatory
-    if (currentScenarioCount >= 7) {
+    if (scenarioCount >= 7) {
       try {
         const surveyStatus = await getCharacterSurveyStatus(String(charId));
         if (surveyStatus && surveyStatus.available && !surveyStatus.completed) {
@@ -1344,7 +1344,7 @@ export default function ChatPage({ user }) {
     } finally {
       setLoading(false);
     }
-  };
+//   };
 
   const handleKeyDown = (e) => {
     // Use onKeyDown (onKeyPress is deprecated/flaky and can miss preventing default submits)
@@ -1375,9 +1375,7 @@ export default function ChatPage({ user }) {
     user: !!user,
     assignedAgentId,
     assignedAgent: !!assignedAgent,
-    userCharacters: user?.characters,
-    displayAgentId,
-    displayAgent: !!displayAgent
+    userCharacters: user?.characters
   });
 
   if (loadingParticipant) {
@@ -1409,9 +1407,6 @@ export default function ChatPage({ user }) {
             </Typography>
             <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
               Please contact support if you believe this is an error.
-            </Typography>
-            <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1, fontSize: '0.75rem' }}>
-              Debug: user={user ? 'exists' : 'null'}, characters={user?.characters?.length || 0}
             </Typography>
           </Box>
         </Box>
