@@ -168,6 +168,8 @@ export default function ChatPage({ user }) {
     console.log(`User selected Scenario ${selectedScenario}, auto-sending prompt...`);
     
     try {
+      setLoading(true); // Show loading state while waiting for agent response
+      
       // Send scenario message
       const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
       console.log('Scenario auto-sent response:', chatResponse);
@@ -175,7 +177,7 @@ export default function ChatPage({ user }) {
       // Mark as auto-sent
       setScenarioAutoSent(true);
       
-      // Add the auto-sent message to chat history immediately
+      // Add the auto-sent message and agent response to chat history immediately
       const autoMessage = {
         sender: 'participant',
         message: scenarioText,
@@ -184,11 +186,19 @@ export default function ChatPage({ user }) {
         isAutoSent: true
       };
       
-      // Update participant state to include auto-sent message
+      // Add agent response immediately
+      const agentResponse = {
+        sender: 'agent',
+        message: chatResponse.reply || chatResponse.message || chatResponse.response || 'I understand. How can I help you with this?',
+        timestamp: new Date().toISOString(),
+        role: 'assistant'
+      };
+      
+      // Update participant state to include both messages immediately
       setParticipant(prev => {
         if (!prev) {
           return {
-            chatHistory: [autoMessage],
+            chatHistory: [autoMessage, agentResponse],
             characters: []
           };
         }
@@ -201,11 +211,16 @@ export default function ChatPage({ user }) {
         
         return {
           ...prev,
-          chatHistory: [...existingHistory, autoMessage]
+          chatHistory: [...existingHistory, autoMessage, agentResponse]
         };
       });
       
-      // Reload chat history from backend after a short delay
+      // Scroll to bottom to show the new messages
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
+      // Reload chat history from backend after a short delay to ensure sync
       setTimeout(async () => {
         try {
           const participantId = localStorage.getItem('participantId') || user?.email;
@@ -217,11 +232,12 @@ export default function ChatPage({ user }) {
                 String(c.character_id) === String(assignedAgentId)
               );
               if (assignedChar) {
+                const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
                 setParticipant(prev => ({
                   ...(prev || {}),
                   ...data,
                   assignedCharacter: assignedChar,
-                  chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+                  chatHistory: backendHistory
                 }));
               }
             }
@@ -229,9 +245,25 @@ export default function ChatPage({ user }) {
         } catch (err) {
           console.error('Failed to reload chat history:', err);
         }
-      }, 500);
+      }, 1000);
     } catch (error) {
       console.error('Failed to auto-send scenario:', error);
+      // Show error message in chat
+      const errorMessage = {
+        sender: 'agent',
+        message: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date().toISOString(),
+        role: 'assistant'
+      };
+      setParticipant(prev => {
+        if (!prev) return { chatHistory: [errorMessage], characters: [] };
+        return {
+          ...prev,
+          chatHistory: [...(prev.chatHistory || []), errorMessage]
+        };
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
