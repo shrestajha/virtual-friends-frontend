@@ -183,14 +183,14 @@ export default function ChatPage({ user }) {
     try {
       setLoading(true);
       
-      // Call backend to select scenario
-      await selectScenario(scenario);
-      console.log(`Scenario ${scenario} selected`);
+      // Call backend to select scenario - this endpoint sends the message and returns agent reply
+      const response = await selectScenario(scenario);
+      console.log(`Scenario ${scenario} selected, response:`, response);
       
       setCurrentScenario(scenario);
-      setScenarioAutoSent(false); // Reset auto-sent flag for new scenario
+      setScenarioAutoSent(true); // Mark as auto-sent since backend handled it
       
-      // Get the scenario text
+      // Get the scenario text from topicInfo
       const scenarioText = scenario === 'A' 
         ? topicInfo.functional_scenario 
         : topicInfo.experiential_scenario;
@@ -200,75 +200,62 @@ export default function ChatPage({ user }) {
         return;
       }
       
-      // Auto-send the scenario text as a user message
-      console.log(`Auto-sending Scenario ${scenario} text:`, scenarioText);
+      // Extract agent reply from response
+      // Response structure may vary, check common fields
+      const agentReply = response.reply || response.message || response.response || response.agent_reply || 'I understand. How can I help you with this?';
       
-      try {
-        // Send scenario message to backend
-        const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
-        console.log('Scenario auto-sent response:', chatResponse);
-        
-        // Mark as auto-sent
-        setScenarioAutoSent(true);
-        
-        // Add the auto-sent user message to chat history immediately
-        const autoMessage = {
-          sender: 'participant',
-          message: scenarioText,
-          timestamp: new Date().toISOString(),
-          role: 'user',
-          isAutoSent: true
-        };
-        
-        // Add agent response immediately
-        const agentReply = chatResponse.reply || chatResponse.message || chatResponse.response || 'I understand. How can I help you with this?';
-        const agentResponse = {
-          sender: 'agent',
-          message: agentReply,
-          timestamp: new Date().toISOString(),
-          role: 'assistant',
-          isAutoSent: true // Mark agent's auto-response
-        };
-        
-        // Update participant state to include both messages immediately
-        setParticipant(prev => {
-          if (!prev) {
-            return {
-              chatHistory: [autoMessage, agentResponse],
-              characters: []
-            };
-          }
-          const existingHistory = prev.chatHistory || [];
-          // Check if message already exists to avoid duplicates
-          const alreadyExists = existingHistory.some(msg => 
-            msg.message === scenarioText && msg.isAutoSent
-          );
-          if (alreadyExists) return prev;
-          
+      // Add the auto-sent user message to chat history immediately
+      const autoMessage = {
+        sender: 'participant',
+        message: scenarioText,
+        timestamp: new Date().toISOString(),
+        role: 'user',
+        isAutoSent: true
+      };
+      
+      // Add agent response from the selectScenario endpoint
+      const agentResponse = {
+        sender: 'agent',
+        message: agentReply,
+        timestamp: new Date().toISOString(),
+        role: 'assistant',
+        isAutoSent: true // Mark agent's auto-response
+      };
+      
+      // Update participant state to include both messages immediately
+      setParticipant(prev => {
+        if (!prev) {
           return {
-            ...prev,
-            chatHistory: [...existingHistory, autoMessage, agentResponse]
+            chatHistory: [autoMessage, agentResponse],
+            characters: []
           };
-        });
+        }
+        const existingHistory = prev.chatHistory || [];
+        // Check if message already exists to avoid duplicates
+        const alreadyExists = existingHistory.some(msg => 
+          msg.message === scenarioText && msg.isAutoSent
+        );
+        if (alreadyExists) return prev;
         
-        // Scroll to bottom to show the new messages
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-        
-        // Reload chat history from backend after a short delay to ensure full sync
-        setTimeout(async () => {
-          try {
-            await loadChatHistoryForScenario();
-          } catch (err) {
-            console.error('Failed to reload chat history after auto-send:', err);
-          }
-        }, 500);
-        
-      } catch (initError) {
-        console.error('Failed to auto-send scenario:', initError);
-        alert('Failed to send scenario message. Please try again.');
-      }
+        return {
+          ...prev,
+          chatHistory: [...existingHistory, autoMessage, agentResponse]
+        };
+      });
+      
+      // Scroll to bottom to show the new messages
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
+      // Reload chat history from backend after a short delay to ensure full sync
+      setTimeout(async () => {
+        try {
+          await loadChatHistoryForScenario();
+        } catch (err) {
+          console.error('Failed to reload chat history after scenario selection:', err);
+        }
+      }, 500);
       
       // Reload topic data to get updated scenario status
       await loadCurrentTopic();
