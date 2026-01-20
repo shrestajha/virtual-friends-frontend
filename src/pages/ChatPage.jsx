@@ -693,8 +693,15 @@ export default function ChatPage({ user }) {
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      e.stopPropagation();
       handleSend();
     }
+  };
+  
+  const handleSendClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleSend();
   };
 
   if (loadingParticipant) {
@@ -931,48 +938,6 @@ export default function ChatPage({ user }) {
               </Box>
             )}
 
-             {/* Progress Indicator */}
-             {currentTopic && (
-               <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
-                 <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
-                   Progress
-                 </Typography>
-                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                   <Box>
-                     <Typography variant="caption" color="text.secondary">Current Topic</Typography>
-                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                       {currentTopic}/11
-                     </Typography>
-                   </Box>
-                   <Box>
-                     <Typography variant="caption" color="text.secondary">Completed Topics</Typography>
-                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                       {topicsCompleted.length}/11
-                     </Typography>
-                   </Box>
-                   <Box>
-                     <Typography variant="caption" color="text.secondary">Scenario A Progress</Typography>
-                     <Typography variant="body2" sx={{ fontWeight: 500, color: scenarioACompleted ? '#16a34a' : 'inherit' }}>
-                       {scenarioACompleted ? '✓ Completed' : `${scenarioAInteractions}/7 interactions`}
-                     </Typography>
-                   </Box>
-                   <Box>
-                     <Typography variant="caption" color="text.secondary">Scenario B Progress</Typography>
-                     <Typography variant="body2" sx={{ fontWeight: 500, color: scenarioBCompleted ? '#16a34a' : 'inherit' }}>
-                       {scenarioBCompleted ? '✓ Completed' : `${scenarioBInteractions}/7 interactions`}
-                     </Typography>
-                   </Box>
-                   {currentScenario && (
-                     <Box>
-                       <Typography variant="caption" color="text.secondary">Current Scenario</Typography>
-                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                         Scenario {currentScenario} ({currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions}/7)
-                       </Typography>
-                     </Box>
-                   )}
-                 </Box>
-               </Paper>
-             )}
 
         {/* Assigned Agent Info - Display only (one agent per user) */}
         {assignedAgent && (
@@ -1208,9 +1173,10 @@ export default function ChatPage({ user }) {
               autoFocus
             />
             <Button
+              type="button"
               variant="contained"
-              onClick={handleSend}
-                     disabled={!input.trim() || loading || hasReachedLimit || !currentScenario}
+              onClick={handleSendClick}
+              disabled={!input.trim() || loading || hasReachedLimit || !currentScenario}
               startIcon={<SendIcon />}
               sx={{
                 minHeight: '48px',
