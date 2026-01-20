@@ -18,6 +18,7 @@ export default function ChatPage({ user }) {
   const [loadingParticipant, setLoadingParticipant] = useState(true);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const participantLoadedRef = useRef(false); // Track if participant data has been loaded to prevent infinite loops
   
   // Character Interaction Survey state
   const [surveyOpen, setSurveyOpen] = useState(false);
