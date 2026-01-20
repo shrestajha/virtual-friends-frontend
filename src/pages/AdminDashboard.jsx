@@ -1087,44 +1087,118 @@ export default function AdminDashboard({ user }) {
                         <TableCell><strong>User Email</strong></TableCell>
                         <TableCell><strong>Assigned Agent</strong></TableCell>
                         <TableCell><strong>EI/CI Levels</strong></TableCell>
+                        <TableCell><strong>Current Topic</strong></TableCell>
+                        <TableCell><strong>Current Scenario</strong></TableCell>
+                        <TableCell><strong>Topics Completed</strong></TableCell>
+                        <TableCell><strong>Scenarios Completed</strong></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {assignments.map((assignment, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{assignment.email}</TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {assignment.agentName}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            {assignment.eiCiCombination ? (
-                              <Chip 
-                                label={assignment.eiCiCombination}
-                                size="small"
-                                sx={{
-                                  bgcolor: getLevelColor(assignment.eiCiCombination.split('/')[0]),
-                                  color: 'white',
-                                  fontWeight: 500
-                                }}
-                              />
-                            ) : assignment.eiLevel && assignment.ciLevel ? (
-                              <Chip 
-                                label={`${assignment.eiLevel}/${assignment.ciLevel}`}
-                                size="small"
-                                sx={{
-                                  bgcolor: getLevelColor(assignment.eiLevel),
-                                  color: 'white',
-                                  fontWeight: 500
-                                }}
-                              />
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">N/A</Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {assignments.map((assignment, idx) => {
+                        // Find the user's chat data to get topic/scenario info
+                        const userChat = allChats.find(c => 
+                          (c.user_email || c.participant_email) === assignment.email
+                        );
+                        const currentTopic = userChat?.current_topic || 'N/A';
+                        const currentScenario = userChat?.current_scenario || 'N/A';
+                        const topicsCompleted = userChat?.topics_completed || [];
+                        const scenariosCompleted = userChat?.scenarios_completed || [];
+                        
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell>{assignment.email}</TableCell>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                {assignment.agentName}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              {assignment.eiCiCombination ? (
+                                <Chip 
+                                  label={assignment.eiCiCombination}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: getLevelColor(assignment.eiCiCombination.split('/')[0]),
+                                    color: 'white',
+                                    fontWeight: 500
+                                  }}
+                                />
+                              ) : assignment.eiLevel && assignment.ciLevel ? (
+                                <Chip 
+                                  label={`${assignment.eiLevel}/${assignment.ciLevel}`}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: getLevelColor(assignment.eiLevel),
+                                    color: 'white',
+                                    fontWeight: 500
+                                  }}
+                                />
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">N/A</Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {typeof currentTopic === 'number' ? (
+                                <Chip 
+                                  label={`Topic ${currentTopic}`}
+                                  size="small"
+                                  sx={{ bgcolor: '#2563eb', color: 'white' }}
+                                />
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  {currentTopic}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {currentScenario === 'A' || currentScenario === 'B' ? (
+                                <Chip 
+                                  label={`Scenario ${currentScenario}`}
+                                  size="small"
+                                  sx={{ 
+                                    bgcolor: currentScenario === 'A' ? '#2563eb' : '#9333ea', 
+                                    color: 'white' 
+                                  }}
+                                />
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  {currentScenario}
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {Array.isArray(topicsCompleted) && topicsCompleted.length > 0 ? (
+                                <Typography variant="body2">
+                                  {topicsCompleted.join(', ')}
+                                </Typography>
+                              ) : typeof topicsCompleted === 'string' && topicsCompleted.trim() ? (
+                                <Typography variant="body2">
+                                  {topicsCompleted}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  None
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {Array.isArray(scenariosCompleted) && scenariosCompleted.length > 0 ? (
+                                <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                                  {scenariosCompleted.join(', ')}
+                                </Typography>
+                              ) : typeof scenariosCompleted === 'string' && scenariosCompleted.trim() ? (
+                                <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                                  {scenariosCompleted}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  None
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </TableContainer>

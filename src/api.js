@@ -168,9 +168,12 @@ export const me = async () => {
       localStorage.setItem("messageCountsPerCharacter", JSON.stringify(messageCounts));
     }
   }
-  // Store current_topic and topics_completed if present
+  // Store current_topic, current_scenario, and topics_completed if present
   if (typeof data.current_topic === 'number') {
     localStorage.setItem("currentTopic", String(data.current_topic));
+  }
+  if (data.current_scenario === 'A' || data.current_scenario === 'B') {
+    localStorage.setItem("currentScenario", data.current_scenario);
   }
   if (data.topics_completed) {
     localStorage.setItem("topicsCompleted", typeof data.topics_completed === 'string' 
@@ -335,6 +338,14 @@ export const submitCharacterSurvey = (characterId, answers) =>
 export const getCurrentTopic = () => http("GET", "/topics/current");
 export const completeTopic = (topicNumber) => 
   http("POST", "/topics/complete", { topic_number: topicNumber });
+export const selectScenario = (scenario) => 
+  http("POST", `/topics/select-scenario?scenario=${scenario}`);
+export const initializeScenario = (characterId) => 
+  http("POST", "/chat/initialize-scenario", { character_id: characterId });
+
+// Chat history API
+export const getChatHistory = (characterId) => 
+  http("GET", `/chat/${characterId}`);
 
 // Admin APIs
 export const getAdminDashboard = () => http("GET", "/admin/dashboard");
