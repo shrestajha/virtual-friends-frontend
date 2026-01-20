@@ -235,16 +235,9 @@ export default function ChatPage({ user }) {
           
           console.log(`Using fallback: character ID mismatch (looking for ${charId}), using character (ID: ${assignedChar?.id}, Name: ${assignedChar?.name}) with chat history`);
           
-          // Update assignedAgentId to match the actual character ID from participant data
-          if (assignedChar && assignedChar.id) {
-            setAssignedAgentId(String(assignedChar.id));
-            setCurrentCharacterId(String(assignedChar.id));
-            // Update assignedAgent with correct info
-            setAssignedAgent({
-              id: assignedChar.id,
-              name: assignedChar.name || `Agent ${assignedChar.id}`
-            });
-          }
+          // DON'T update assignedAgentId here - it causes infinite loops
+          // The assignedAgentId from /auth/me is the source of truth
+          // Just use the character from participant data for chat history
         }
         
         if (assignedChar) {
@@ -837,15 +830,15 @@ export default function ChatPage({ user }) {
   
   // Load participant data once when we have assignedAgentId
   useEffect(() => {
-    if (assignedAgentId && user?.email && !participantLoadedRef.current) {
+    if (assignedAgentId && user?.email && !participantLoadedRef.current && !loadingParticipant) {
       participantLoadedRef.current = true;
-      loadParticipant().catch(err => {
+      loadParticipant(assignedAgentId).catch(err => {
         console.error('Error loading participant data:', err);
         participantLoadedRef.current = false; // Allow retry on error
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedAgentId, user?.email]);
+  }, [assignedAgentId, user?.email, loadingParticipant]);
 
   // Auto-scroll to bottom when chat history changes or new messages arrive
   useEffect(() => {
