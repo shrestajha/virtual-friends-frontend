@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getParticipant, getAssignedCharacters, getCurrentTopic, sendChat, me, getCharacterSurveyStatus } from '../api';
-import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, CircularProgress, Tabs, Tab, Alert, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CharacterInteractionSurvey from '../components/CharacterInteractionSurvey';
 import TopicDisplay from '../components/TopicDisplay';
@@ -33,9 +33,13 @@ export default function ChatPage({ user }) {
   const [topicLoading, setTopicLoading] = useState(true);
   const [topicAdvancementMessage, setTopicAdvancementMessage] = useState(null);
   
-  // Scenario state: 'A' (Functional) or 'B' (Experiential)
-  const [currentScenario, setCurrentScenario] = useState('A');
+  // Scenario state: 'A' (Functional) or 'B' (Experiential) or null (not selected)
+  const [currentScenario, setCurrentScenario] = useState(null);
   const [scenarioAutoSent, setScenarioAutoSent] = useState(false); // Track if we've auto-sent the scenario message
+  const [scenarioAInteractions, setScenarioAInteractions] = useState(0); // Track interactions for Scenario A
+  const [scenarioBInteractions, setScenarioBInteractions] = useState(0); // Track interactions for Scenario B
+  const [scenarioACompleted, setScenarioACompleted] = useState(false); // Track if Scenario A survey completed
+  const [scenarioBCompleted, setScenarioBCompleted] = useState(false); // Track if Scenario B survey completed
 
   // Check if any character has reached 7 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
@@ -129,9 +133,13 @@ export default function ChatPage({ user }) {
       
       setCanAdvance(topicData.can_advance || false);
       
-      // If topic changed, reset scenario state (backend will provide current_scenario via /auth/me)
+      // If topic changed, reset scenario states for new topic
       if (previousTopic !== topicData.current_topic) {
-        // Don't reset scenario here - let /auth/me provide it
+        setCurrentScenario(null);
+        setScenarioACompleted(false);
+        setScenarioBCompleted(false);
+        setScenarioAInteractions(0);
+        setScenarioBInteractions(0);
         setScenarioAutoSent(false);
       }
     } catch (error) {
@@ -142,41 +150,48 @@ export default function ChatPage({ user }) {
     }
   }, [user, currentTopic]);
   
-  // Auto-send scenario message when scenario changes or topic loads
-  const autoSendScenario = useCallback(async () => {
-    if (!topicInfo || !assignedAgentId || scenarioAutoSent || loading) return;
+  // Handle scenario selection from dropdown
+  const handleScenarioChange = async (event) => {
+    const selectedScenario = event.target.value;
+    if (!selectedScenario || !topicInfo || !assignedAgentId) return;
     
-    const scenarioText = currentScenario === 'A' 
+    setCurrentScenario(selectedScenario);
+    setScenarioAutoSent(false); // Reset auto-sent flag for new scenario
+    
+    // Auto-send the selected scenario's prompt
+    const scenarioText = selectedScenario === 'A' 
       ? topicInfo.functional_scenario 
       : topicInfo.experiential_scenario;
     
     if (!scenarioText) return;
     
-    console.log(`Auto-sending Scenario ${currentScenario}:`, scenarioText);
+    console.log(`User selected Scenario ${selectedScenario}, auto-sending prompt...`);
     
     try {
-      // Don't set loading state for auto-send to avoid blocking UI
-      // Send scenario message - backend should not count this as an interaction
-      // We'll track this separately on the frontend
+      // Send scenario message
       const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
       console.log('Scenario auto-sent response:', chatResponse);
       
       // Mark as auto-sent
       setScenarioAutoSent(true);
       
-      // Add the auto-sent message to chat history immediately (without incrementing count)
-      // This ensures it appears in the UI right away
+      // Add the auto-sent message to chat history immediately
       const autoMessage = {
         sender: 'participant',
         message: scenarioText,
         timestamp: new Date().toISOString(),
         role: 'user',
-        isAutoSent: true // Flag to identify auto-sent messages
+        isAutoSent: true
       };
       
       // Update participant state to include auto-sent message
       setParticipant(prev => {
-        if (!prev) return prev;
+        if (!prev) {
+          return {
+            chatHistory: [autoMessage],
+            characters: []
+          };
+        }
         const existingHistory = prev.chatHistory || [];
         // Check if message already exists to avoid duplicates
         const alreadyExists = existingHistory.some(msg => 
@@ -191,7 +206,6 @@ export default function ChatPage({ user }) {
       });
       
       // Reload chat history from backend after a short delay
-      // Note: loadParticipant may not be available yet, so we'll reload via getParticipant
       setTimeout(async () => {
         try {
           const participantId = localStorage.getItem('participantId') || user?.email;
@@ -218,20 +232,8 @@ export default function ChatPage({ user }) {
       }, 500);
     } catch (error) {
       console.error('Failed to auto-send scenario:', error);
-      // Don't block UI if auto-send fails
     }
-  }, [topicInfo, assignedAgentId, currentScenario, scenarioAutoSent, loading, user]);
-  
-  // Auto-send scenario when topic loads and scenario is set
-  useEffect(() => {
-    if (topicInfo && assignedAgentId && !scenarioAutoSent && !loading && interactionCount === 0) {
-      // Small delay to ensure chat history is loaded
-      const timer = setTimeout(() => {
-        autoSendScenario();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [topicInfo, assignedAgentId, scenarioAutoSent, loading, interactionCount, autoSendScenario]);
+  };
 
   // Load user data from /auth/me (assigned agent, current topic, interaction count)
   const loadUserData = useCallback(async () => {
@@ -284,12 +286,15 @@ export default function ChatPage({ user }) {
       }
       
       // Extract current scenario from /auth/me (backend tracks this)
-      if (userData.current_scenario === 'A' || userData.current_scenario === 'B') {
-        setCurrentScenario(userData.current_scenario);
-        console.log(`Current scenario: ${userData.current_scenario}`);
-        // Reset auto-sent flag when scenario changes
-        setScenarioAutoSent(false);
+      // But we'll let user select via dropdown, so we don't auto-set it
+      // Only use backend value if we don't have a selection yet
+      if (!currentScenario && (userData.current_scenario === 'A' || userData.current_scenario === 'B')) {
+        // Don't auto-set - let user choose from dropdown
+        console.log(`Backend has scenario: ${userData.current_scenario}, but user must select`);
       }
+      
+      // Reset scenario completion states when topic changes
+      // This will be handled when topic actually changes
       
       // Extract topics completed
       if (userData.topics_completed) {
@@ -372,12 +377,17 @@ export default function ChatPage({ user }) {
     }
   }, [participant, currentCharacterId]);
 
-  // Check for survey eligibility when interaction count changes
+  // Check for survey eligibility when scenario interaction count reaches 7
   useEffect(() => {
-    if (assignedAgentId && interactionCount >= 7) {
-      checkAndShowSurvey();
+    if (assignedAgentId && currentScenario) {
+      const scenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+      const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
+      
+      if (scenarioCount >= 7 && !isCompleted) {
+        checkAndShowSurvey();
+      }
     }
-  }, [assignedAgentId, interactionCount, checkAndShowSurvey]);
+  }, [assignedAgentId, currentScenario, scenarioAInteractions, scenarioBInteractions, scenarioACompleted, scenarioBCompleted, checkAndShowSurvey]);
 
   // Load participant data (chat history) for the assigned agent
   const loadParticipant = async (characterId) => {
@@ -580,9 +590,23 @@ export default function ChatPage({ user }) {
     const charId = assignedAgentId || currentCharacterId;
     if (!text || !charId || loading || !user) return;
     
-    // Check interaction limit (7 interactions per topic)
-    if (interactionCount >= 7) {
-      alert('You have reached the interaction limit for this topic. Please complete the survey to advance.');
+    // Check if a scenario is selected
+    if (!currentScenario) {
+      alert('Please select a scenario from the dropdown first.');
+      return;
+    }
+    
+    // Check interaction limit for current scenario (7 interactions per scenario)
+    const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+    const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
+    
+    if (isCompleted) {
+      alert(`You have already completed Scenario ${currentScenario}. Please select the other scenario or complete both to advance.`);
+      return;
+    }
+    
+    if (currentScenarioCount >= 7) {
+      alert(`You have reached the interaction limit for Scenario ${currentScenario}. Please complete the survey to continue.`);
       return;
     }
 
@@ -594,23 +618,38 @@ export default function ChatPage({ user }) {
       const chatResponse = await sendChat(String(charId), text);
       console.log('Chat response:', chatResponse);
       
-      // Increment interaction count locally (only for user-sent messages, not auto-sent scenarios)
-      const newCount = interactionCount + 1;
-      setInteractionCount(newCount);
+      // Increment interaction count for the current scenario
+      if (currentScenario === 'A') {
+        const newCount = scenarioAInteractions + 1;
+        setScenarioAInteractions(newCount);
+        setInteractionCount(newCount); // Also update main count for display
+      } else {
+        const newCount = scenarioBInteractions + 1;
+        setScenarioBInteractions(newCount);
+        setInteractionCount(newCount);
+      }
       
       // Reload user data from /auth/me to get updated interaction count and check survey status
       try {
         const userData = await me();
         const count = userData.message_count || 
           (userData.characters && userData.characters[0]?.message_count) || 
-          newCount;
+          (currentScenario === 'A' ? scenarioAInteractions + 1 : scenarioBInteractions + 1);
+        
+        // Update the appropriate scenario count
+        if (currentScenario === 'A') {
+          setScenarioAInteractions(count);
+        } else {
+          setScenarioBInteractions(count);
+        }
         setInteractionCount(count);
         
         // Reload chat history
         await loadParticipant(charId);
         
-        // Check if survey should be shown (when count reaches 7)
-        if (count >= 7) {
+        // Check if survey should be shown (when count reaches 7 for current scenario)
+        const scenarioCount = currentScenario === 'A' ? scenarioAInteractions + 1 : scenarioBInteractions + 1;
+        if (scenarioCount >= 7) {
           await checkAndShowSurvey();
         }
       } catch (error) {
@@ -758,18 +797,35 @@ export default function ChatPage({ user }) {
       }
       setCanAdvance(updatedTopicData.can_advance || false);
       
-      // Determine next scenario based on current scenario
+      // Mark the completed scenario
       if (currentScenario === 'A') {
-        // After Scenario A survey, switch to Scenario B
-        console.log('Switching from Scenario A to Scenario B');
-        setCurrentScenario('B');
-        setScenarioAutoSent(false); // Allow auto-send of Scenario B
+        setScenarioACompleted(true);
+        setScenarioAInteractions(0); // Reset count for next topic
+        console.log('Scenario A completed');
+      } else if (currentScenario === 'B') {
+        setScenarioBCompleted(true);
+        setScenarioBInteractions(0); // Reset count for next topic
+        console.log('Scenario B completed');
+      }
+      
+      // Check if both scenarios are completed - then topic can advance
+      const bothCompleted = (currentScenario === 'A' && scenarioBCompleted) || 
+                           (currentScenario === 'B' && scenarioACompleted) ||
+                           (scenarioACompleted && scenarioBCompleted);
+      
+      if (bothCompleted) {
+        // Both scenarios completed, topic should advance (handled by backend)
+        console.log('Both scenarios completed, topic should advance');
+        // Reset scenario states for next topic
+        setCurrentScenario(null);
+        setScenarioACompleted(false);
+        setScenarioBCompleted(false);
+        setScenarioAInteractions(0);
+        setScenarioBInteractions(0);
+        setScenarioAutoSent(false);
       } else {
-        // After Scenario B survey, topic should advance (handled by backend)
-        // Reset to Scenario A for next topic
-        console.log('Scenario B completed, topic should advance');
-        setCurrentScenario('A');
-        setScenarioAutoSent(false); // Allow auto-send of Scenario A for next topic
+        // Only one scenario completed, keep current scenario selected but reset auto-sent
+        setScenarioAutoSent(false);
       }
       
       // Reload chat history (preserved, but interaction count reset)
@@ -830,47 +886,93 @@ export default function ChatPage({ user }) {
                   canAdvance={canAdvance}
                   currentScenario={currentScenario}
                 />
+                
+                {/* Scenario Selection Dropdown */}
+                <Paper elevation={1} sx={{ mt: 2, p: 2, bgcolor: '#fff' }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="scenario-select-label">Select Scenario</InputLabel>
+                    <Select
+                      labelId="scenario-select-label"
+                      id="scenario-select"
+                      value={currentScenario || ''}
+                      label="Select Scenario"
+                      onChange={handleScenarioChange}
+                      disabled={loading}
+                    >
+                      <MenuItem value="A">
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            Scenario A: Functional Loss
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {scenarioACompleted ? '✓ Completed' : `${scenarioAInteractions}/7 interactions`}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="B">
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            Scenario B: Experiential Loss
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {scenarioBCompleted ? '✓ Completed' : `${scenarioBInteractions}/7 interactions`}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  {scenarioACompleted && scenarioBCompleted && (
+                    <Alert severity="success" sx={{ mt: 2 }}>
+                      Both scenarios completed! Complete the surveys to advance to the next topic.
+                    </Alert>
+                  )}
+                </Paper>
               </Box>
             )}
 
-        {/* Progress Indicator */}
-        {currentTopic && (
-          <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
-              Progress
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Current Topic</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {currentTopic}/11
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Completed Topics</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {topicsCompleted.length}/11
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Interactions This Topic</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {currentCount}/7
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Survey Status</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {completedSurveys.has(String(currentCharacterId)) 
-                    ? 'Completed' 
-                    : currentCount >= 7 
-                      ? 'Available' 
-                      : 'Not Available'}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
-        )}
+             {/* Progress Indicator */}
+             {currentTopic && (
+               <Paper elevation={1} sx={{ m: 2, mt: 1, p: 2, bgcolor: '#fff' }}>
+                 <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
+                   Progress
+                 </Typography>
+                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                   <Box>
+                     <Typography variant="caption" color="text.secondary">Current Topic</Typography>
+                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                       {currentTopic}/11
+                     </Typography>
+                   </Box>
+                   <Box>
+                     <Typography variant="caption" color="text.secondary">Completed Topics</Typography>
+                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                       {topicsCompleted.length}/11
+                     </Typography>
+                   </Box>
+                   <Box>
+                     <Typography variant="caption" color="text.secondary">Scenario A Progress</Typography>
+                     <Typography variant="body2" sx={{ fontWeight: 500, color: scenarioACompleted ? '#16a34a' : 'inherit' }}>
+                       {scenarioACompleted ? '✓ Completed' : `${scenarioAInteractions}/7 interactions`}
+                     </Typography>
+                   </Box>
+                   <Box>
+                     <Typography variant="caption" color="text.secondary">Scenario B Progress</Typography>
+                     <Typography variant="body2" sx={{ fontWeight: 500, color: scenarioBCompleted ? '#16a34a' : 'inherit' }}>
+                       {scenarioBCompleted ? '✓ Completed' : `${scenarioBInteractions}/7 interactions`}
+                     </Typography>
+                   </Box>
+                   {currentScenario && (
+                     <Box>
+                       <Typography variant="caption" color="text.secondary">Current Scenario</Typography>
+                       <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                         Scenario {currentScenario} ({currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions}/7)
+                       </Typography>
+                     </Box>
+                   )}
+                 </Box>
+               </Paper>
+             )}
 
         {/* Assigned Agent Info - Display only (one agent per user) */}
         {assignedAgent && (
@@ -1050,15 +1152,17 @@ export default function ChatPage({ user }) {
               fullWidth
               multiline
               maxRows={4}
-              placeholder={
-                hasReachedLimit 
-                  ? "You have reached the interaction limit for this character" 
-                  : "Type your message... (Press Enter to send)"
-              }
+                     placeholder={
+                       !currentScenario
+                         ? "Please select a scenario from the dropdown first"
+                         : hasReachedLimit 
+                           ? `You have reached the interaction limit for Scenario ${currentScenario}` 
+                           : "Type your message... (Press Enter to send)"
+                     }
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading || hasReachedLimit}
+                     disabled={loading || hasReachedLimit || !currentScenario}
               variant="outlined"
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -1080,7 +1184,7 @@ export default function ChatPage({ user }) {
             <Button
               variant="contained"
               onClick={handleSend}
-              disabled={!input.trim() || loading || hasReachedLimit}
+                     disabled={!input.trim() || loading || hasReachedLimit || !currentScenario}
               startIcon={<SendIcon />}
               sx={{
                 minHeight: '48px',
