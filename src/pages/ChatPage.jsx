@@ -204,7 +204,7 @@ export default function ChatPage({ user }) {
       
       console.log('Loading chat history for character:', charId);
       const data = await getParticipant(user.email);
-      console.log('Participant data loaded:', data);
+      console.log('Participant data loaded:', JSON.stringify(data).substring(0, 200));
       
       if (!data) {
         throw new Error('Invalid participant data received');
@@ -813,19 +813,10 @@ export default function ChatPage({ user }) {
 
   // On Load: Load user data and topic info
   useEffect(() => {
-    if (user) {
+    if (user && !participantLoadedRef.current) {
+      participantLoadedRef.current = true; // Prevent multiple calls
       // Call functions directly - they're now regular functions, not useCallback
-      loadUserData().then(() => {
-        // After user data is loaded, load participant data to get chat history
-        // Use a small delay to ensure assignedAgentId is set
-        setTimeout(() => {
-          if (assignedAgentId || user?.email) {
-            loadParticipant().catch(err => {
-              console.error('Error loading participant data:', err);
-            });
-          }
-        }, 200);
-      }).catch(err => {
+      loadUserData().catch(err => {
         console.error('Error in loadUserData:', err);
         setLoadingParticipant(false); // Ensure loading state is cleared on error
       });
@@ -837,19 +828,23 @@ export default function ChatPage({ user }) {
   }, [user]); // Only depend on user, functions are stable
 
   // Set currentCharacterId when assignedAgentId is set (for backward compatibility)
-  // Also load participant data when assignedAgentId is available
   useEffect(() => {
     if (assignedAgentId && !currentCharacterId) {
       setCurrentCharacterId(String(assignedAgentId));
     }
-    // Load participant data when we have an assigned agent ID
-    if (assignedAgentId && user?.email) {
+  }, [assignedAgentId, currentCharacterId]);
+  
+  // Load participant data once when we have assignedAgentId
+  useEffect(() => {
+    if (assignedAgentId && user?.email && !participantLoadedRef.current) {
+      participantLoadedRef.current = true;
       loadParticipant().catch(err => {
         console.error('Error loading participant data:', err);
+        participantLoadedRef.current = false; // Allow retry on error
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedAgentId, currentCharacterId, user]);
+  }, [assignedAgentId, user?.email]);
 
   // Auto-scroll to bottom when chat history changes or new messages arrive
   useEffect(() => {
