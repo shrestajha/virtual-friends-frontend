@@ -892,7 +892,7 @@ export default function ChatPage({ user }) {
   // Send Message: Call POST /chat endpoint
   const handleSend = async () => {
     const text = input.trim();
-    const charId = assignedAgentId || currentCharacterId;
+    const charId = displayAgentId || assignedAgentId || currentCharacterId;
     if (!text || !charId || loading || !user) return;
     
     // Check if a scenario is selected
@@ -1190,10 +1190,16 @@ export default function ChatPage({ user }) {
     );
   }
 
-  // Check if we have the assigned agent - but allow rendering even if not loaded yet
+  // Check if we have the assigned agent - use fallback values if not loaded yet
   // This prevents blank page if there's a delay in loading
-  if (!assignedAgentId || !assignedAgent) {
-    // Still render the layout, but show a message
+  const displayAgent = assignedAgent || { 
+    id: assignedAgentId || user?.characters?.[0]?.id, 
+    name: user?.characters?.[0]?.name || `Agent ${assignedAgentId || user?.characters?.[0]?.id || 'Unknown'}` 
+  };
+  const displayAgentId = assignedAgentId || user?.characters?.[0]?.id;
+  
+  // If we still don't have an agent after user data should be loaded, show loading message
+  if (!displayAgentId && !loadingParticipant) {
     return (
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
@@ -1215,11 +1221,8 @@ export default function ChatPage({ user }) {
   // Use scenario-specific interaction count (not total count)
   const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
   const hasReachedLimit = currentScenarioCount >= 7;
-  // Use assigned agent (one agent per user)
-  const currentCharacter = assignedAgent || { 
-    id: assignedAgentId, 
-    name: assignedAgent?.name || `Agent ${assignedAgentId}` 
-  };
+  // Use assigned agent (one agent per user) - use displayAgent we defined above
+  const currentCharacter = displayAgent;
 
   // Handle survey completion
   const handleSurveyComplete = async (characterId, characterName) => {
@@ -1470,7 +1473,7 @@ export default function ChatPage({ user }) {
                   mb: 1.5
                 }}
               >
-                {assignedAgent.name || `Agent ${assignedAgentId}`}
+                {displayAgent.name || `Agent ${displayAgentId}`}
               </Typography>
               {currentScenario ? (
                 <Box>
@@ -1622,7 +1625,7 @@ export default function ChatPage({ user }) {
         </Box>
 
           {/* Survey Button - Shows when survey is available */}
-          {hasReachedLimit && surveyAvailable && !completedSurveys.has(String(assignedAgentId)) && (
+          {hasReachedLimit && surveyAvailable && !completedSurveys.has(String(displayAgentId || assignedAgentId)) && (
             <Paper elevation={2} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
                 <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
@@ -1634,8 +1637,8 @@ export default function ChatPage({ user }) {
                   onClick={async () => {
                     try {
                       // Open survey dialog
-                      setSurveyCharacterId(String(assignedAgentId));
-                      setSurveyCharacterName(assignedAgent?.name || `Agent ${assignedAgentId}`);
+                      setSurveyCharacterId(String(displayAgentId || assignedAgentId));
+                      setSurveyCharacterName(displayAgent?.name || assignedAgent?.name || `Agent ${displayAgentId || assignedAgentId}`);
                       setSurveyOpen(true);
                     } catch (error) {
                       console.error('Failed to open survey:', error);
@@ -1657,7 +1660,7 @@ export default function ChatPage({ user }) {
           )}
           
           {/* Completion Message - Shows when limit reached but survey not yet available */}
-          {hasReachedLimit && !surveyAvailable && !completedSurveys.has(String(assignedAgentId)) && (
+          {hasReachedLimit && !surveyAvailable && !completedSurveys.has(String(displayAgentId || assignedAgentId)) && (
             <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
               <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
                 You've completed 7 interactions! The survey will be available shortly.
