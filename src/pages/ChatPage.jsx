@@ -213,7 +213,11 @@ export default function ChatPage({ user }) {
 
   // Load user data from /auth/me (assigned agent, current topic, interaction count)
   const loadUserData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('loadUserData: No user provided');
+      setLoadingParticipant(false);
+      return;
+    }
     
     try {
       setLoadingParticipant(true);
@@ -269,23 +273,36 @@ export default function ChatPage({ user }) {
       
       // Load chat history for assigned agent
       if (agentId) {
-        await loadParticipant(agentId);
+        try {
+          await loadParticipant(agentId);
+        } catch (participantError) {
+          console.error('Failed to load participant data:', participantError);
+          // Don't block UI if participant load fails
+        }
+      } else {
+        console.warn('No agent ID found in user data');
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
-      alert('Failed to load user data. Please try refreshing the page.');
+      // Don't show alert immediately - let the UI render with error state
+      console.error('Error details:', error.message, error.stack);
     } finally {
       setLoadingParticipant(false);
     }
-  }, [user]);
+  }, [user, loadParticipant]);
 
   // On Load: Load user data and topic info
   useEffect(() => {
     if (user) {
-      loadUserData();
-      loadCurrentTopic();
+      loadUserData().catch(err => {
+        console.error('Error in loadUserData:', err);
+        setLoadingParticipant(false); // Ensure loading state is cleared on error
+      });
+      loadCurrentTopic().catch(err => {
+        console.error('Error in loadCurrentTopic:', err);
+      });
     }
-  }, [user, loadUserData, loadCurrentTopic]);
+  }, [user]); // Remove loadUserData and loadCurrentTopic from dependencies to avoid infinite loops
 
   // Set currentCharacterId when assignedAgentId is set (for backward compatibility)
   useEffect(() => {
@@ -590,19 +607,30 @@ export default function ChatPage({ user }) {
 
   if (loadingParticipant) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px" sx={{ width: '100%', height: '100%' }}>
         <CircularProgress />
+        <Typography variant="body2" sx={{ ml: 2 }}>Loading...</Typography>
       </Box>
     );
   }
 
-  // Check if we have the assigned agent
+  // Check if we have the assigned agent - but allow rendering even if not loaded yet
+  // This prevents blank page if there's a delay in loading
   if (!assignedAgentId || !assignedAgent) {
+    // Still render the layout, but show a message
     return (
-      <Box p={3}>
-        <Typography variant="h6" color="error">
-          No assigned agent found. Please contact support.
-        </Typography>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
+          <Box>
+            <CircularProgress sx={{ mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" align="center">
+              Loading your agent...
+            </Typography>
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
+              If this persists, please refresh the page.
+            </Typography>
+          </Box>
+        </Box>
       </Box>
     );
   }
