@@ -182,6 +182,147 @@ export default function ChatPage({ user }) {
     }
   }, [user, currentTopic]);
   
+  // Load participant data - moved here to avoid circular dependency with loadChatHistoryForScenario
+  const loadParticipant = async (characterId) => {
+    // Use provided characterId or fall back to assignedAgentId
+    const charId = characterId || assignedAgentId;
+    if (!charId) {
+      console.log('loadParticipant: No character ID provided');
+      return null;
+    }
+    try {
+      setLoadingParticipant(true);
+      if (!user || !user.email) {
+        throw new Error('User email is required to load participant');
+      }
+      
+      console.log('Loading chat history for character:', charId);
+      const data = await getParticipant(user.email);
+      console.log('Participant data loaded:', data);
+      
+      if (!data) {
+        throw new Error('Invalid participant data received');
+      }
+      
+      if (data._id) {
+        localStorage.setItem('participantId', data._id);
+        console.log('Stored participant ID:', data._id);
+      }
+      
+      if (data.characters && Array.isArray(data.characters)) {
+        const assignedChar = data.characters.find(c => 
+          String(c.id) === String(charId) || 
+          String(c.character_id) === String(charId)
+        );
+        
+        if (assignedChar) {
+          const count = assignedChar.interactions || assignedChar.interaction_count || interactionCount;
+          if (count !== interactionCount) {
+            console.log(`Updating interaction count from participant data: ${count}`);
+            setInteractionCount(count);
+          }
+          
+          const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+          setParticipant(prev => {
+            const existingHistory = prev?.chatHistory || [];
+            const combinedHistory = [...existingHistory];
+            backendHistory.forEach(backendMsg => {
+              const exists = combinedHistory.some(existingMsg => 
+                existingMsg.message === backendMsg.message && 
+                (existingMsg.timestamp === backendMsg.timestamp || 
+                 existingMsg.created_at === backendMsg.created_at)
+              );
+              if (!exists) {
+                combinedHistory.push(backendMsg);
+              }
+            });
+            combinedHistory.sort((a, b) => {
+              const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+              const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+              return timeA - timeB;
+            });
+            
+            if (currentScenario && combinedHistory.length > 0) {
+              const userMessages = combinedHistory.filter(msg => 
+                msg.sender === 'participant' && 
+                msg.role === 'user' && 
+                !msg.isAutoSent
+              );
+              const currentCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+              if (currentCount === 0 && userMessages.length > 0) {
+                if (currentScenario === 'A') {
+                  setScenarioAInteractions(userMessages.length);
+                } else {
+                  setScenarioBInteractions(userMessages.length);
+                }
+              }
+            }
+            
+            return {
+              ...(prev || {}),
+              ...data,
+              assignedCharacter: assignedChar,
+              chatHistory: combinedHistory.length > 0 ? combinedHistory : backendHistory
+            };
+          });
+        } else {
+          setParticipant(data);
+        }
+      } else {
+        setParticipant(data);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Failed to load participant:', error);
+      const errorMessage = error.message || 'Unknown error occurred';
+      let userFriendlyMessage = 'Failed to load participant data.';
+      
+      if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        try {
+          const assignedChars = await getAssignedCharacters();
+          if (assignedChars && Array.isArray(assignedChars)) {
+            localStorage.setItem("assignedCharacters", JSON.stringify(assignedChars));
+          }
+          const retryData = await getParticipant(user.email);
+          if (retryData) {
+            setParticipant(retryData);
+            if (retryData._id) {
+              localStorage.setItem('participantId', retryData._id);
+            }
+            setLoadingParticipant(false);
+            return retryData;
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh character assignments:', refreshError);
+        }
+      }
+      
+      if (errorMessage.includes('403') || errorMessage.includes('survey')) {
+        userFriendlyMessage = 'Please complete the signup survey before accessing chat features.';
+        window.history.pushState({}, "", "/signup-survey");
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
+      
+      if (errorMessage.includes('column participants.email does not exist')) {
+        userFriendlyMessage = 'Backend database configuration error. Please contact the administrator.';
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        userFriendlyMessage = 'Server error occurred. Please try again later.';
+      }
+      
+      alert(userFriendlyMessage);
+      setParticipant({
+        _id: null,
+        surveyUnlocked: false,
+        characters: []
+      });
+      return null;
+    } finally {
+      setLoadingParticipant(false);
+    }
+  };
+  
   // Handle scenario selection - new implementation using selectScenario endpoint
   const handleScenarioSelect = async (scenario) => {
     if (!scenario || !topicInfo || !assignedAgentId) return;
@@ -288,7 +429,7 @@ export default function ChatPage({ user }) {
       setLoading(false);
     }
   };
-  
+
   // Load chat history for current scenario
   const loadChatHistoryForScenario = useCallback(async () => {
     if (!assignedAgentId) return;
@@ -640,9 +781,6 @@ export default function ChatPage({ user }) {
     
     checkSurveyAvailability();
   }, [assignedAgentId, currentScenario, scenarioAInteractions, scenarioBInteractions, scenarioACompleted, scenarioBCompleted]);
-
-  // Load participant data (chat history) for the assigned agent
-  const loadParticipant = async (characterId) => {
     // Use provided characterId or fall back to assignedAgentId
     const charId = characterId || assignedAgentId;
     if (!charId) {
