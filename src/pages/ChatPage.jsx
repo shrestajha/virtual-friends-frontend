@@ -151,17 +151,23 @@ export default function ChatPage({ user }) {
         setScenarioBCompleted(topicData.scenario_b_completed);
       }
       
-      // Set current scenario from backend if provided
+      // Set current scenario from backend if provided, or default to A if Scenario A not completed
       if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
         setCurrentScenario(topicData.current_scenario);
+      } else if (!topicData.scenario_a_completed) {
+        // If no scenario set and Scenario A not completed, default to A
+        setCurrentScenario('A');
+      } else if (topicData.scenario_a_completed && !topicData.scenario_b_completed) {
+        // Scenario A completed but B not, default to B
+        setCurrentScenario('B');
       }
       
       setCanAdvance(topicData.can_advance || false);
       
       // If topic changed, reset scenario states for new topic (but preserve if same topic)
       if (previousTopic !== null && previousTopic !== topicData.current_topic) {
-        // New topic - reset scenario states
-        setCurrentScenario(null);
+        // New topic - reset scenario states and start with Scenario A
+        setCurrentScenario('A');
         setScenarioACompleted(false);
         setScenarioBCompleted(false);
         setScenarioAInteractions(0);
@@ -294,9 +300,16 @@ export default function ChatPage({ user }) {
       // Filter messages by current scenario if needed (backend may handle this)
       // For now, use all messages
       if (Array.isArray(chatHistory)) {
+        // Sort messages by timestamp in ascending order (oldest first, newest last)
+        const sortedHistory = [...chatHistory].sort((a, b) => {
+          const timeA = new Date(a.timestamp || a.created_at || a.created_at_est || 0).getTime();
+          const timeB = new Date(b.timestamp || b.created_at || b.created_at_est || 0).getTime();
+          return timeA - timeB; // Ascending order
+        });
+        
         setParticipant(prev => ({
           ...(prev || {}),
-          chatHistory: chatHistory
+          chatHistory: sortedHistory
         }));
       }
     } catch (error) {
@@ -587,12 +600,14 @@ export default function ChatPage({ user }) {
     }
   }, [assignedAgentId, currentCharacterId]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when chat history changes or new messages arrive
   useEffect(() => {
-    if (currentCharacterId && participant) {
+    // Use setTimeout to ensure DOM has updated after state changes
+    const timer = setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [participant, currentCharacterId]);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [chatHistory, loading]);
 
 
   // Check for survey eligibility when scenario interaction count reaches 7
@@ -1219,6 +1234,19 @@ export default function ChatPage({ user }) {
       setScenarioACompleted(true);
       // Reset interaction count for Scenario A after survey completion
       setScenarioAInteractions(0);
+      // Automatically switch to Scenario B after Scenario A is completed
+      if (!scenarioBCompleted) {
+        setCurrentScenario('B');
+        setScenarioAutoSent(false);
+        // Auto-select Scenario B
+        setTimeout(async () => {
+          try {
+            await handleScenarioSelect('B');
+          } catch (err) {
+            console.error('Failed to auto-select Scenario B:', err);
+          }
+        }, 500);
+      }
     } else if (currentScenario === 'B') {
       setScenarioBCompleted(true);
       // Reset interaction count for Scenario B after survey completion
@@ -1310,11 +1338,22 @@ export default function ChatPage({ user }) {
           setTopicAdvancementMessage("Both scenarios completed! Topic will advance automatically.");
           setTimeout(() => setTopicAdvancementMessage(null), 5000);
         } else {
-          // One scenario done, prompt to complete the other
-          const otherScenario = currentScenario === 'A' ? 'B' : 'A';
-          const otherScenarioName = otherScenario === 'A' ? 'Functional Loss' : 'Experiential Loss';
-          setTopicAdvancementMessage(`Great! Now complete Scenario ${otherScenario} (${otherScenarioName}) to finish this topic.`);
-          setTimeout(() => setTopicAdvancementMessage(null), 5000);
+          // One scenario done, automatically switch to the next scenario
+          if (currentScenario === 'A' && scenarioACompleted) {
+            // Scenario A completed, switch to Scenario B
+            setCurrentScenario('B');
+            setScenarioAutoSent(false);
+            // Auto-select Scenario B
+            handleScenarioSelect('B').catch(err => {
+              console.error('Failed to auto-select Scenario B:', err);
+            });
+            setTopicAdvancementMessage(`Great! Scenario A completed. Now starting Scenario B: Experiential Loss.`);
+            setTimeout(() => setTopicAdvancementMessage(null), 5000);
+          } else if (currentScenario === 'B' && scenarioBCompleted) {
+            // Scenario B completed, topic should advance
+            setTopicAdvancementMessage(`Both scenarios completed! Topic will advance automatically.`);
+            setTimeout(() => setTopicAdvancementMessage(null), 5000);
+          }
         }
       }
       
@@ -1384,9 +1423,11 @@ export default function ChatPage({ user }) {
                   topicsCompleted={topicsCompleted}
                   canAdvance={canAdvance}
                   currentScenario={currentScenario}
+                  scenarioACompleted={scenarioACompleted}
+                  scenarioBCompleted={scenarioBCompleted}
                 />
                 
-                {/* Scenario Selector */}
+                {/* Scenario Selector - Shows only current scenario */}
                 <Box sx={{ mt: 2 }}>
                   <ScenarioSelector
                     currentScenario={currentScenario}
@@ -1511,6 +1552,7 @@ export default function ChatPage({ user }) {
             Start a conversation with {currentCharacter?.name || 'your agent'} about the topic scenarios above!
           </Typography>
         ) : (
+          // Render messages in natural order (oldest first, newest last) - no reverse()
           chatHistory.map((msg, idx) => {
             const isUser = msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user';
             return (
