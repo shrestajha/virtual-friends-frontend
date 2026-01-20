@@ -182,7 +182,7 @@ export default function ChatPage({ user }) {
     }
   }, [user, currentTopic]);
   
-  // Load participant data - moved here to avoid circular dependency with loadChatHistoryForScenario
+  // Load participant data - defined as regular function (not useCallback) to avoid circular dependencies
   const loadParticipant = async (characterId) => {
     // Use provided characterId or fall back to assignedAgentId
     const charId = characterId || assignedAgentId;
@@ -411,16 +411,32 @@ export default function ChatPage({ user }) {
       }, 100);
       
       // Reload chat history from backend after a short delay to ensure full sync
+      // Use direct API call instead of loadChatHistoryForScenario to avoid circular dependency
       setTimeout(async () => {
         try {
-          await loadChatHistoryForScenario();
+          if (assignedAgentId) {
+            const chatHistory = await getChatHistory(String(assignedAgentId));
+            if (Array.isArray(chatHistory)) {
+              const sortedHistory = [...chatHistory].sort((a, b) => {
+                const timeA = new Date(a.timestamp || a.created_at || a.created_at_est || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || b.created_at_est || 0).getTime();
+                return timeA - timeB;
+              });
+              setParticipant(prev => ({
+                ...(prev || {}),
+                chatHistory: sortedHistory
+              }));
+            }
+          }
         } catch (err) {
           console.error('Failed to reload chat history after scenario selection:', err);
         }
       }, 500);
       
       // Reload topic data to get updated scenario status
-      await loadCurrentTopic();
+      if (loadCurrentTopic) {
+        await loadCurrentTopic();
+      }
       
     } catch (error) {
       console.error('Failed to select scenario:', error);
@@ -455,10 +471,37 @@ export default function ChatPage({ user }) {
       }
     } catch (error) {
       console.error('Failed to load chat history:', error);
-      // Fallback to participant endpoint
-      await loadParticipant(assignedAgentId);
+      // Fallback: reload participant data directly (don't call loadParticipant to avoid circular dependency)
+      try {
+        const participantId = localStorage.getItem('participantId') || user?.email;
+        if (participantId) {
+          const data = await getParticipant(participantId);
+          if (data && data.characters) {
+            const assignedChar = data.characters.find(c => 
+              String(c.id) === String(assignedAgentId) || 
+              String(c.character_id) === String(assignedAgentId)
+            );
+            if (assignedChar) {
+              const chatHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+              const sortedHistory = [...chatHistory].sort((a, b) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeA - timeB;
+              });
+              setParticipant(prev => ({
+                ...(prev || {}),
+                ...data,
+                assignedCharacter: assignedChar,
+                chatHistory: sortedHistory
+              }));
+            }
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Failed to load participant as fallback:', fallbackError);
+      }
     }
-  }, [assignedAgentId]);
+  }, [assignedAgentId, user]);
   
   // Handle scenario selection from dropdown (legacy - keeping for backward compatibility)
   const handleScenarioChange = async (event) => {
