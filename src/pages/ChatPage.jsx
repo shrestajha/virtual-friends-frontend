@@ -722,18 +722,27 @@ export default function ChatPage({ user }) {
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
+    // Use onKeyDown (onKeyPress is deprecated/flaky and can miss preventing default submits)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
-      handleSend();
+      try {
+        handleSend();
+      } catch (err) {
+        console.error('handleSend threw from keydown:', err);
+      }
     }
   };
   
   const handleSendClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    handleSend();
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    try {
+      handleSend();
+    } catch (err) {
+      console.error('handleSend threw from click:', err);
+    }
   };
 
   if (loadingParticipant) {
@@ -1184,7 +1193,7 @@ export default function ChatPage({ user }) {
                      }
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
                      disabled={loading || hasReachedLimit || !currentScenario}
               variant="outlined"
               sx={{
