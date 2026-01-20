@@ -619,11 +619,10 @@ export default function ChatPage({ user }) {
         await loadParticipant(charId);
       }
       
-      // Survey is now handled via show_survey flag in addMessage response OR by checking interactions
-      
       // Refocus input field after successful send (unless survey dialog opens)
-      if (!updatedParticipant || updatedParticipant.show_survey !== true) {
-        // Only refocus if survey dialog is not opening
+      // We no longer rely on an "updatedParticipant" response here.
+      // Only refocus if the survey dialog is not opening.
+      if (!surveyOpen) {
         setTimeout(() => {
           inputRef.current?.focus();
         }, 100);
