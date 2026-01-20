@@ -32,6 +32,10 @@ export default function ChatPage({ user }) {
   const [canAdvance, setCanAdvance] = useState(false);
   const [topicLoading, setTopicLoading] = useState(true);
   const [topicAdvancementMessage, setTopicAdvancementMessage] = useState(null);
+  
+  // Scenario state: 'A' (Functional) or 'B' (Experiential)
+  const [currentScenario, setCurrentScenario] = useState('A');
+  const [scenarioAutoSent, setScenarioAutoSent] = useState(false); // Track if we've auto-sent the scenario message
 
   // Check if any character has reached 7 interactions and show survey for that character
   const checkAndShowSurvey = useCallback((participantData) => {
@@ -109,6 +113,7 @@ export default function ChatPage({ user }) {
       const topicData = await getCurrentTopic();
       console.log('Current topic data:', topicData);
       
+      const previousTopic = currentTopic;
       setCurrentTopic(topicData.current_topic);
       setTopicInfo(topicData.topic_info);
       
@@ -123,13 +128,88 @@ export default function ChatPage({ user }) {
       }
       
       setCanAdvance(topicData.can_advance || false);
+      
+      // If topic changed, reset to Scenario A and mark as not auto-sent
+      if (previousTopic !== topicData.current_topic) {
+        setCurrentScenario('A');
+        setScenarioAutoSent(false);
+      }
     } catch (error) {
       console.error('Failed to load current topic:', error);
       // Don't show error to user, topics are optional
     } finally {
       setTopicLoading(false);
     }
-  }, [user]);
+  }, [user, currentTopic]);
+  
+  // Auto-send scenario message when scenario changes or topic loads
+  const autoSendScenario = useCallback(async () => {
+    if (!topicInfo || !assignedAgentId || scenarioAutoSent || loading) return;
+    
+    const scenarioText = currentScenario === 'A' 
+      ? topicInfo.functional_scenario 
+      : topicInfo.experiential_scenario;
+    
+    if (!scenarioText) return;
+    
+    console.log(`Auto-sending Scenario ${currentScenario}:`, scenarioText);
+    
+    try {
+      // Don't set loading state for auto-send to avoid blocking UI
+      // Send scenario message - backend should not count this as an interaction
+      // We'll track this separately on the frontend
+      const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
+      console.log('Scenario auto-sent response:', chatResponse);
+      
+      // Mark as auto-sent
+      setScenarioAutoSent(true);
+      
+      // Add the auto-sent message to chat history immediately (without incrementing count)
+      // This ensures it appears in the UI right away
+      const autoMessage = {
+        sender: 'participant',
+        message: scenarioText,
+        timestamp: new Date().toISOString(),
+        role: 'user',
+        isAutoSent: true // Flag to identify auto-sent messages
+      };
+      
+      // Update participant state to include auto-sent message
+      setParticipant(prev => {
+        if (!prev) return prev;
+        const existingHistory = prev.chatHistory || [];
+        // Check if message already exists to avoid duplicates
+        const alreadyExists = existingHistory.some(msg => 
+          msg.message === scenarioText && msg.isAutoSent
+        );
+        if (alreadyExists) return prev;
+        
+        return {
+          ...prev,
+          chatHistory: [...existingHistory, autoMessage]
+        };
+      });
+      
+      // Reload chat history from backend after a short delay
+      setTimeout(async () => {
+        await loadParticipant(assignedAgentId);
+      }, 500);
+    } catch (error) {
+      console.error('Failed to auto-send scenario:', error);
+      // Don't block UI if auto-send fails
+    }
+  }, [topicInfo, assignedAgentId, currentScenario, scenarioAutoSent, loading, loadParticipant]);
+  
+  // Auto-send scenario when topic loads and scenario is set
+  useEffect(() => {
+    if (topicInfo && assignedAgentId && !scenarioAutoSent && !loading && interactionCount === 0) {
+      // Small delay to ensure chat history is loaded
+      const timer = setTimeout(() => {
+        autoSendScenario();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [topicInfo, assignedAgentId, scenarioAutoSent, loading, interactionCount, autoSendScenario]);
 
   // Load user data from /auth/me (assigned agent, current topic, interaction count)
   const loadUserData = useCallback(async () => {
@@ -443,7 +523,7 @@ export default function ChatPage({ user }) {
       const chatResponse = await sendChat(String(charId), text);
       console.log('Chat response:', chatResponse);
       
-      // Increment interaction count locally
+      // Increment interaction count locally (only for user-sent messages, not auto-sent scenarios)
       const newCount = interactionCount + 1;
       setInteractionCount(newCount);
       
@@ -597,6 +677,20 @@ export default function ChatPage({ user }) {
       }
       setCanAdvance(updatedTopicData.can_advance || false);
       
+      // Determine next scenario based on current scenario
+      if (currentScenario === 'A') {
+        // After Scenario A survey, switch to Scenario B
+        console.log('Switching from Scenario A to Scenario B');
+        setCurrentScenario('B');
+        setScenarioAutoSent(false); // Allow auto-send of Scenario B
+      } else {
+        // After Scenario B survey, topic should advance (handled by backend)
+        // Reset to Scenario A for next topic
+        console.log('Scenario B completed, topic should advance');
+        setCurrentScenario('A');
+        setScenarioAutoSent(false); // Allow auto-send of Scenario A for next topic
+      }
+      
       // Reload chat history (preserved, but interaction count reset)
       const agentId = assignedAgentId || userData.characters?.[0]?.id;
       if (agentId) {
@@ -645,17 +739,18 @@ export default function ChatPage({ user }) {
           </Alert>
         )}
 
-        {/* Topic Display */}
-        {topicInfo && (
-          <Box sx={{ p: 2, pb: 1 }}>
-            <TopicDisplay 
-              topicInfo={topicInfo}
-              currentTopic={currentTopic}
-              topicsCompleted={topicsCompleted}
-              canAdvance={canAdvance}
-            />
-          </Box>
-        )}
+            {/* Topic Display */}
+            {topicInfo && (
+              <Box sx={{ p: 2, pb: 1 }}>
+                <TopicDisplay 
+                  topicInfo={topicInfo}
+                  currentTopic={currentTopic}
+                  topicsCompleted={topicsCompleted}
+                  canAdvance={canAdvance}
+                  currentScenario={currentScenario}
+                />
+              </Box>
+            )}
 
         {/* Progress Indicator */}
         {currentTopic && (
