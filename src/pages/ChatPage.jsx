@@ -300,12 +300,21 @@ export default function ChatPage({ user }) {
           // No character match found, but set chatHistory from first character if available
           const firstChar = data.characters[0];
           const fallbackHistory = firstChar?.chatHistory || firstChar?.chat_history || firstChar?.messages || [];
+          
+          console.error('[CHATBOX ERROR] ❌ Character ID mismatch - cannot match assigned agent with participant data.');
+          console.error('[CHATBOX ERROR] Looking for character ID:', charId);
+          console.error('[CHATBOX ERROR] Available character IDs in participant data:', data.characters.map(c => ({ id: c.id, name: c.name })));
+          console.error('[CHATBOX ERROR] Using first character as fallback:', firstChar ? { id: firstChar.id, name: firstChar.name, historyLength: fallbackHistory.length } : 'No characters available');
+          
           setParticipant({
             ...data,
             assignedCharacter: firstChar || null,
             chatHistory: fallbackHistory
           });
-          console.warn('No character match found, using first character as fallback');
+          
+          if (fallbackHistory.length === 0) {
+            console.error('[CHATBOX ERROR] ❌ Fallback character has NO chat history. Chatbox will be empty.');
+          }
         }
       } else {
         setParticipant(data);
@@ -1093,7 +1102,12 @@ export default function ChatPage({ user }) {
 
   // Get chat history for assigned agent
   const getCurrentChatHistory = () => {
-    if (!participant) return [];
+    if (!participant) {
+      console.error('[CHATBOX ERROR] ❌ No participant data available. Cannot display chat history.');
+      console.error('[CHATBOX ERROR] Participant state is:', participant);
+      console.error('[CHATBOX ERROR] This means the /mongo/participants/{email} endpoint either failed or returned no data.');
+      return [];
+    }
     
     // Use chatHistory directly if stored (highest priority)
     if (participant.chatHistory && Array.isArray(participant.chatHistory) && participant.chatHistory.length > 0) {
@@ -1132,6 +1146,11 @@ export default function ChatPage({ user }) {
       
       // If no ID match, find the character with the most chat history
       if (!character) {
+        console.warn('[CHATBOX WARNING] ⚠️ Character ID mismatch detected.');
+        console.warn('[CHATBOX WARNING] Looking for character ID:', assignedAgentId || currentCharacterId);
+        console.warn('[CHATBOX WARNING] Available character IDs in participant data:', participant.characters.map(c => c.id || c.character_id));
+        console.warn('[CHATBOX WARNING] Using character with most chat history as fallback.');
+        
         character = participant.characters.reduce((prev, current) => {
           const prevHistory = prev?.chatHistory || prev?.chat_history || prev?.messages || [];
           const currentHistory = current?.chatHistory || current?.chat_history || current?.messages || [];
@@ -1152,10 +1171,27 @@ export default function ChatPage({ user }) {
             const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
             return timeA - timeB;
           });
+        } else {
+          console.error('[CHATBOX ERROR] ❌ Character found but has NO chat history.');
+          console.error('[CHATBOX ERROR] Character data:', { id: character.id, name: character.name, hasHistory: false });
         }
+      } else {
+        console.error('[CHATBOX ERROR] ❌ No character found in participant.characters array.');
+        console.error('[CHATBOX ERROR] Participant characters:', participant.characters);
       }
+    } else {
+      console.error('[CHATBOX ERROR] ❌ Participant data has no characters array.');
+      console.error('[CHATBOX ERROR] Participant data structure:', participant);
     }
     
+    console.error('[CHATBOX ERROR] ❌ Returning empty chat history. Chatbox will be empty.');
+    console.error('[CHATBOX ERROR] Summary:');
+    console.error('[CHATBOX ERROR] - Has participant:', !!participant);
+    console.error('[CHATBOX ERROR] - Has participant.chatHistory:', !!(participant?.chatHistory && participant.chatHistory.length > 0));
+    console.error('[CHATBOX ERROR] - Has participant.assignedCharacter:', !!participant?.assignedCharacter);
+    console.error('[CHATBOX ERROR] - Has participant.characters:', !!(participant?.characters && participant.characters.length > 0));
+    console.error('[CHATBOX ERROR] - Assigned agent ID:', assignedAgentId);
+    console.error('[CHATBOX ERROR] - Current character ID:', currentCharacterId);
     return [];
   };
 
@@ -1500,6 +1536,46 @@ export default function ChatPage({ user }) {
   // Use fallback values to prevent blank page
 
   const chatHistory = getCurrentChatHistory();
+  
+  // Debug logging for chat display
+  if (chatHistory.length === 0 && participant) {
+    console.error('[CHATBOX ERROR] ❌ Chat history is EMPTY but participant data exists.');
+    console.error('[CHATBOX ERROR] This means chat messages exist in backend but are not being extracted correctly.');
+    console.error('[CHATBOX ERROR] Participant state:', {
+      hasParticipant: !!participant,
+      hasCharacters: !!(participant.characters && participant.characters.length > 0),
+      hasChatHistory: !!(participant.chatHistory && participant.chatHistory.length > 0),
+      hasAssignedCharacter: !!participant.assignedCharacter,
+      assignedAgentId: assignedAgentId,
+      currentCharacterId: currentCharacterId,
+      participantCharacters: participant.characters?.map(c => ({
+        id: c.id,
+        name: c.name,
+        hasHistory: !!(c.chatHistory || c.chat_history || c.messages),
+        historyLength: (c.chatHistory || c.chat_history || c.messages || []).length
+      }))
+    });
+  }
+  
+  // Debug logging for chat display
+  if (chatHistory.length === 0 && participant) {
+    console.error('[CHATBOX ERROR] Chat history is empty but participant data exists.');
+    console.error('[CHATBOX ERROR] Participant state:', {
+      hasParticipant: !!participant,
+      hasCharacters: !!(participant.characters && participant.characters.length > 0),
+      hasChatHistory: !!(participant.chatHistory && participant.chatHistory.length > 0),
+      hasAssignedCharacter: !!participant.assignedCharacter,
+      assignedAgentId: assignedAgentId,
+      currentCharacterId: currentCharacterId,
+      participantCharacters: participant.characters?.map(c => ({
+        id: c.id,
+        name: c.name,
+        hasHistory: !!(c.chatHistory || c.chat_history || c.messages),
+        historyLength: (c.chatHistory || c.chat_history || c.messages || []).length
+      }))
+    });
+  }
+  
   // Use scenario-specific interaction count (not total count)
   const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
   const hasReachedLimit = currentScenarioCount >= 7;
