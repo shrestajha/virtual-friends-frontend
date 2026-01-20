@@ -129,9 +129,9 @@ export default function ChatPage({ user }) {
       
       setCanAdvance(topicData.can_advance || false);
       
-      // If topic changed, reset to Scenario A and mark as not auto-sent
+      // If topic changed, reset scenario state (backend will provide current_scenario via /auth/me)
       if (previousTopic !== topicData.current_topic) {
-        setCurrentScenario('A');
+        // Don't reset scenario here - let /auth/me provide it
         setScenarioAutoSent(false);
       }
     } catch (error) {
@@ -259,6 +259,14 @@ export default function ChatPage({ user }) {
       if (typeof userData.current_topic === 'number') {
         setCurrentTopic(userData.current_topic);
         console.log(`Current topic: ${userData.current_topic}`);
+      }
+      
+      // Extract current scenario from /auth/me (backend tracks this)
+      if (userData.current_scenario === 'A' || userData.current_scenario === 'B') {
+        setCurrentScenario(userData.current_scenario);
+        console.log(`Current scenario: ${userData.current_scenario}`);
+        // Reset auto-sent flag when scenario changes
+        setScenarioAutoSent(false);
       }
       
       // Extract topics completed
