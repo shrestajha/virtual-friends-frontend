@@ -233,12 +233,33 @@ export default function ChatPage({ user }) {
               );
               if (assignedChar) {
                 const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
-                setParticipant(prev => ({
-                  ...(prev || {}),
-                  ...data,
-                  assignedCharacter: assignedChar,
-                  chatHistory: backendHistory
-                }));
+                // Merge with existing history to preserve messages
+                setParticipant(prev => {
+                  const existingHistory = prev?.chatHistory || [];
+                  const combinedHistory = [...existingHistory];
+                  backendHistory.forEach(backendMsg => {
+                    const exists = combinedHistory.some(existingMsg => 
+                      existingMsg.message === backendMsg.message && 
+                      existingMsg.timestamp === backendMsg.timestamp
+                    );
+                    if (!exists) {
+                      combinedHistory.push(backendMsg);
+                    }
+                  });
+                  // Sort by timestamp
+                  combinedHistory.sort((a, b) => {
+                    const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                    const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                    return timeA - timeB;
+                  });
+                  
+                  return {
+                    ...(prev || {}),
+                    ...data,
+                    assignedCharacter: assignedChar,
+                    chatHistory: combinedHistory.length > 0 ? combinedHistory : backendHistory
+                  };
+                });
               }
             }
           }
@@ -486,11 +507,35 @@ export default function ChatPage({ user }) {
             setInteractionCount(count);
           }
           
-          // Store participant data with chat history
-          setParticipant({
-            ...data,
-            assignedCharacter: assignedChar,
-            chatHistory: assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || []
+          // Merge backend chat history with existing history to preserve messages
+          const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+          setParticipant(prev => {
+            const existingHistory = prev?.chatHistory || [];
+            // Combine histories, removing duplicates
+            const combinedHistory = [...existingHistory];
+            backendHistory.forEach(backendMsg => {
+              const exists = combinedHistory.some(existingMsg => 
+                existingMsg.message === backendMsg.message && 
+                (existingMsg.timestamp === backendMsg.timestamp || 
+                 existingMsg.created_at === backendMsg.created_at)
+              );
+              if (!exists) {
+                combinedHistory.push(backendMsg);
+              }
+            });
+            // Sort by timestamp
+            combinedHistory.sort((a, b) => {
+              const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+              const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+              return timeA - timeB;
+            });
+            
+            return {
+              ...(prev || {}),
+              ...data,
+              assignedCharacter: assignedChar,
+              chatHistory: combinedHistory.length > 0 ? combinedHistory : backendHistory
+            };
           });
         } else {
           // Assigned agent not found in participant data, store what we have
@@ -650,6 +695,41 @@ export default function ChatPage({ user }) {
       const chatResponse = await sendChat(String(charId), text);
       console.log('Chat response:', chatResponse);
       
+      // Immediately add user message and agent response to chat history
+      const userMessage = {
+        sender: 'participant',
+        message: text,
+        timestamp: new Date().toISOString(),
+        role: 'user'
+      };
+      
+      const agentMessage = {
+        sender: 'agent',
+        message: chatResponse.reply || chatResponse.message || chatResponse.response || 'I understand.',
+        timestamp: new Date().toISOString(),
+        role: 'assistant'
+      };
+      
+      // Update chat history immediately so messages stay visible
+      setParticipant(prev => {
+        if (!prev) {
+          return {
+            chatHistory: [userMessage, agentMessage],
+            characters: []
+          };
+        }
+        const existingHistory = prev.chatHistory || [];
+        return {
+          ...prev,
+          chatHistory: [...existingHistory, userMessage, agentMessage]
+        };
+      });
+      
+      // Scroll to bottom to show new messages
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
       // Increment interaction count for the current scenario
       if (currentScenario === 'A') {
         const newCount = scenarioAInteractions + 1;
@@ -676,8 +756,32 @@ export default function ChatPage({ user }) {
         }
         setInteractionCount(count);
         
-        // Reload chat history
-        await loadParticipant(charId);
+        // Reload chat history from backend and merge with existing (don't replace)
+        try {
+          const participantId = localStorage.getItem('participantId') || user?.email;
+          if (participantId) {
+            const data = await getParticipant(participantId);
+            if (data && data.characters) {
+              const assignedChar = data.characters.find(c => 
+                String(c.id) === String(charId) || 
+                String(c.character_id) === String(charId)
+              );
+              if (assignedChar) {
+                const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+                // Merge backend history with current history (backend has the source of truth)
+                setParticipant(prev => ({
+                  ...(prev || {}),
+                  ...data,
+                  assignedCharacter: assignedChar,
+                  chatHistory: backendHistory // Use backend history as source of truth
+                }));
+              }
+            }
+          }
+        } catch (participantError) {
+          console.warn('Failed to reload participant data:', participantError);
+          // Keep existing chat history if reload fails
+        }
         
         // Check if survey should be shown (when count reaches 7 for current scenario)
         const scenarioCount = currentScenario === 'A' ? scenarioAInteractions + 1 : scenarioBInteractions + 1;
@@ -687,7 +791,29 @@ export default function ChatPage({ user }) {
       } catch (error) {
         console.warn('Failed to reload user data after message, but message was sent:', error);
         // Message was sent successfully, just reload participant for chat history
-        await loadParticipant(charId);
+        try {
+          const participantId = localStorage.getItem('participantId') || user?.email;
+          if (participantId) {
+            const data = await getParticipant(participantId);
+            if (data && data.characters) {
+              const assignedChar = data.characters.find(c => 
+                String(c.id) === String(charId) || 
+                String(c.character_id) === String(charId)
+              );
+              if (assignedChar) {
+                const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
+                setParticipant(prev => ({
+                  ...(prev || {}),
+                  ...data,
+                  assignedCharacter: assignedChar,
+                  chatHistory: backendHistory
+                }));
+              }
+            }
+          }
+        } catch (participantError) {
+          console.warn('Failed to reload participant data:', participantError);
+        }
       }
       
       // Refocus input field after successful send (unless survey dialog opens)
