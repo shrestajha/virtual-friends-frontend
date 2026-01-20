@@ -189,131 +189,67 @@ export default function ChatPage({ user }) {
     }
   };
   
-  // Load participant data - defined as regular function (not useCallback) to avoid circular dependencies
-  const loadParticipant = async (characterId) => {
-    // Use provided characterId or fall back to assignedAgentId
-    const charId = characterId || assignedAgentId;
-    if (!charId) {
-      console.log('loadParticipant: No character ID provided');
+  // SIMPLIFIED: Load participant data - just get chat history
+  const loadParticipant = async () => {
+    if (!user?.email) {
+      console.log('[CHAT] No user email');
       return null;
     }
+    
+    if (participantLoadedRef.current) {
+      console.log('[CHAT] Already loaded, skipping');
+      return null;
+    }
+    
     try {
       setLoadingParticipant(true);
-      if (!user || !user.email) {
-        throw new Error('User email is required to load participant');
-      }
+      participantLoadedRef.current = true; // Prevent duplicate calls
       
-      console.log('Loading chat history for character:', charId);
+      console.log('[CHAT] Loading participant data for:', user.email);
       const data = await getParticipant(user.email);
-      console.log('Participant data loaded:', JSON.stringify(data).substring(0, 200));
+      console.log('[CHAT] Participant data received:', data);
       
       if (!data) {
         throw new Error('Invalid participant data received');
       }
       
-      if (data._id) {
-        localStorage.setItem('participantId', data._id);
-        console.log('Stored participant ID:', data._id);
-      }
+      // SIMPLE: Just find the character with chat history and set it
+      let characterWithHistory = null;
+      let chatHistory = [];
       
-      if (data.characters && Array.isArray(data.characters)) {
-        // Try to find character by ID first
-        let assignedChar = data.characters.find(c => 
-          String(c.id) === String(charId) || 
-          String(c.character_id) === String(charId)
+      if (data.characters && Array.isArray(data.characters) && data.characters.length > 0) {
+        // Try to find by ID match first
+        characterWithHistory = data.characters.find(c => 
+          String(c.id) === String(assignedAgentId) || 
+          String(c.character_id) === String(assignedAgentId)
         );
         
-        // Aggressive fallback: if no match, ALWAYS use the first character that has chat history
-        // This handles cases where backend character ID doesn't match participant character ID
-        if (!assignedChar) {
-          // Find first character with chat history, or just use first character
-          assignedChar = data.characters.find(c => 
+        // If no match, use first character with history, or just first character
+        if (!characterWithHistory) {
+          characterWithHistory = data.characters.find(c => 
             (c.chatHistory && c.chatHistory.length > 0) ||
             (c.chat_history && c.chat_history.length > 0) ||
             (c.messages && c.messages.length > 0)
           ) || data.characters[0];
-          
-          console.log(`Using fallback: character ID mismatch (looking for ${charId}), using character (ID: ${assignedChar?.id}, Name: ${assignedChar?.name}) with chat history`);
-          
-          // DON'T update assignedAgentId here - it causes infinite loops
-          // The assignedAgentId from /auth/me is the source of truth
-          // Just use the character from participant data for chat history
         }
         
-        if (assignedChar) {
-          const count = assignedChar.interactions || assignedChar.interaction_count || interactionCount;
-          if (count !== interactionCount) {
-            console.log(`Updating interaction count from participant data: ${count}`);
-            setInteractionCount(count);
-          }
-          
-          const backendHistory = assignedChar.chatHistory || assignedChar.chat_history || assignedChar.messages || [];
-          setParticipant(prev => {
-            const existingHistory = prev?.chatHistory || [];
-            const combinedHistory = [...existingHistory];
-            backendHistory.forEach(backendMsg => {
-              const exists = combinedHistory.some(existingMsg => 
-                existingMsg.message === backendMsg.message && 
-                (existingMsg.timestamp === backendMsg.timestamp || 
-                 existingMsg.created_at === backendMsg.created_at)
-              );
-              if (!exists) {
-                combinedHistory.push(backendMsg);
-              }
-            });
-            combinedHistory.sort((a, b) => {
-              const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-              const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-              return timeA - timeB;
-            });
-            
-            if (currentScenario && combinedHistory.length > 0) {
-              const userMessages = combinedHistory.filter(msg => 
-                msg.sender === 'participant' && 
-                msg.role === 'user' && 
-                !msg.isAutoSent
-              );
-              const currentCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
-              if (currentCount === 0 && userMessages.length > 0) {
-                if (currentScenario === 'A') {
-                  setScenarioAInteractions(userMessages.length);
-                } else {
-                  setScenarioBInteractions(userMessages.length);
-                }
-              }
-            }
-            
-            return {
-              ...(prev || {}),
-              ...data,
-              assignedCharacter: assignedChar,
-              chatHistory: combinedHistory.length > 0 ? combinedHistory : backendHistory
-            };
-          });
-        } else {
-          // No character match found, but set chatHistory from first character if available
-          const firstChar = data.characters[0];
-          const fallbackHistory = firstChar?.chatHistory || firstChar?.chat_history || firstChar?.messages || [];
-          
-          console.error('[CHATBOX ERROR] ❌ Character ID mismatch - cannot match assigned agent with participant data.');
-          console.error('[CHATBOX ERROR] Looking for character ID:', charId);
-          console.error('[CHATBOX ERROR] Available character IDs in participant data:', data.characters.map(c => ({ id: c.id, name: c.name })));
-          console.error('[CHATBOX ERROR] Using first character as fallback:', firstChar ? { id: firstChar.id, name: firstChar.name, historyLength: fallbackHistory.length } : 'No characters available');
-          
-          setParticipant({
-            ...data,
-            assignedCharacter: firstChar || null,
-            chatHistory: fallbackHistory
-          });
-          
-          if (fallbackHistory.length === 0) {
-            console.error('[CHATBOX ERROR] ❌ Fallback character has NO chat history. Chatbox will be empty.');
-          }
+        // Extract chat history
+        if (characterWithHistory) {
+          chatHistory = characterWithHistory.chatHistory || 
+                       characterWithHistory.chat_history || 
+                       characterWithHistory.messages || [];
+          console.log(`[CHAT] Found character: ${characterWithHistory.name} (ID: ${characterWithHistory.id}) with ${chatHistory.length} messages`);
         }
-      } else {
-        setParticipant(data);
       }
       
+      // Set participant state with chat history
+      setParticipant({
+        ...data,
+        assignedCharacter: characterWithHistory,
+        chatHistory: chatHistory
+      });
+      
+      console.log(`[CHAT] ✅ Chat history loaded: ${chatHistory.length} messages`);
       return data;
     } catch (error) {
       console.error('Failed to load participant:', error);
@@ -830,15 +766,15 @@ export default function ChatPage({ user }) {
   
   // Load participant data once when we have assignedAgentId
   useEffect(() => {
-    if (assignedAgentId && user?.email && !participantLoadedRef.current && !loadingParticipant) {
-      participantLoadedRef.current = true;
-      loadParticipant(assignedAgentId).catch(err => {
-        console.error('Error loading participant data:', err);
+    if (assignedAgentId && user?.email && !participantLoadedRef.current) {
+      loadParticipant().catch(err => {
+        console.error('[CHAT] Error loading participant data:', err);
         participantLoadedRef.current = false; // Allow retry on error
+        setLoadingParticipant(false);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedAgentId, user?.email, loadingParticipant]);
+  }, [assignedAgentId, user?.email]);
 
   // Auto-scroll to bottom when chat history changes or new messages arrive
   useEffect(() => {
@@ -847,7 +783,7 @@ export default function ChatPage({ user }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
     return () => clearTimeout(timer);
-  }, [loading]);
+  }, [participant?.chatHistory, loading]);
 
 
   // Check for survey eligibility when scenario interaction count reaches 7
