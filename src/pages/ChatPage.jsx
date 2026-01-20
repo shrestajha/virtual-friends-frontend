@@ -432,15 +432,34 @@ export default function ChatPage({ user }) {
 
   // Check for survey eligibility when scenario interaction count reaches 7
   useEffect(() => {
-    if (assignedAgentId && currentScenario) {
-      const scenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
-      const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
-      
-      if (scenarioCount >= 7 && !isCompleted) {
-        checkAndShowSurvey();
+    const checkSurveyAvailability = async () => {
+      if (assignedAgentId && currentScenario) {
+        const scenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+        const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
+        
+        if (scenarioCount >= 7 && !isCompleted) {
+          // Check survey status from backend
+          try {
+            const surveyStatus = await getCharacterSurveyStatus(String(assignedAgentId));
+            console.log('Survey status check:', surveyStatus);
+            if (surveyStatus && surveyStatus.available) {
+              setSurveyAvailable(true);
+            } else {
+              setSurveyAvailable(false);
+            }
+          } catch (error) {
+            console.warn('Failed to check survey status:', error);
+            // If status check fails, still allow survey if count is 7+
+            setSurveyAvailable(scenarioCount >= 7);
+          }
+        } else {
+          setSurveyAvailable(false);
+        }
       }
-    }
-  }, [assignedAgentId, currentScenario, scenarioAInteractions, scenarioBInteractions, scenarioACompleted, scenarioBCompleted, checkAndShowSurvey]);
+    };
+    
+    checkSurveyAvailability();
+  }, [assignedAgentId, currentScenario, scenarioAInteractions, scenarioBInteractions, scenarioACompleted, scenarioBCompleted]);
 
   // Load participant data (chat history) for the assigned agent
   const loadParticipant = async (characterId) => {
@@ -529,6 +548,32 @@ export default function ChatPage({ user }) {
               const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
               return timeA - timeB;
             });
+            
+            // Initialize scenario counts from chat history
+            // Count user messages (excluding auto-sent scenario prompts)
+            const userMessages = combinedHistory.filter(msg => 
+              msg.sender === 'participant' && 
+              msg.role === 'user' && 
+              !msg.isAutoSent
+            );
+            
+            // If we have a current scenario selected, initialize its count with user messages
+            // This handles the case where the page is reloaded and we need to restore the count
+            if (currentScenario && userMessages.length > 0) {
+              // Only initialize if the count is currently 0 (fresh load)
+              const currentCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+              if (currentCount === 0) {
+                // Initialize with the count of user messages
+                // Note: This assumes all messages belong to the current scenario
+                // In practice, messages might be split between scenarios, but this is a reasonable approximation
+                if (currentScenario === 'A') {
+                  setScenarioAInteractions(userMessages.length);
+                } else {
+                  setScenarioBInteractions(userMessages.length);
+                }
+                console.log(`Initialized Scenario ${currentScenario} count from chat history: ${userMessages.length}`);
+              }
+            }
             
             return {
               ...(prev || {}),
@@ -731,30 +776,32 @@ export default function ChatPage({ user }) {
       }, 100);
       
       // Increment interaction count for the current scenario
+      let newScenarioCount;
       if (currentScenario === 'A') {
-        const newCount = scenarioAInteractions + 1;
-        setScenarioAInteractions(newCount);
-        setInteractionCount(newCount); // Also update main count for display
+        newScenarioCount = scenarioAInteractions + 1;
+        setScenarioAInteractions(newScenarioCount);
       } else {
-        const newCount = scenarioBInteractions + 1;
-        setScenarioBInteractions(newCount);
-        setInteractionCount(newCount);
+        newScenarioCount = scenarioBInteractions + 1;
+        setScenarioBInteractions(newScenarioCount);
       }
       
-      // Reload user data from /auth/me to get updated interaction count and check survey status
+      // Update main interaction count for display (use scenario-specific count)
+      setInteractionCount(newScenarioCount);
+      
+      // Reload user data from /auth/me to get updated topic and check survey status
+      // NOTE: Don't overwrite scenario-specific counts with total message_count from backend
+      // The backend's message_count is a total across all scenarios, not per-scenario
       try {
         const userData = await me();
-        const count = userData.message_count || 
-          (userData.characters && userData.characters[0]?.message_count) || 
-          (currentScenario === 'A' ? scenarioAInteractions + 1 : scenarioBInteractions + 1);
         
-        // Update the appropriate scenario count
-        if (currentScenario === 'A') {
-          setScenarioAInteractions(count);
-        } else {
-          setScenarioBInteractions(count);
-        }
-        setInteractionCount(count);
+        // Update main interaction count from backend (for general display, but scenario counts take precedence)
+        const totalCount = userData.message_count || 
+          (userData.characters && userData.characters[0]?.message_count) || 
+          newScenarioCount;
+        setInteractionCount(totalCount);
+        
+        // DO NOT overwrite scenario-specific counts - they are tracked locally and incremented correctly
+        // The scenario counts are what matter for the 7-interaction limit per scenario
         
         // Reload chat history from backend and merge with existing (don't replace)
         try {
@@ -783,10 +830,26 @@ export default function ChatPage({ user }) {
           // Keep existing chat history if reload fails
         }
         
-        // Check if survey should be shown (when count reaches 7 for current scenario)
-        const scenarioCount = currentScenario === 'A' ? scenarioAInteractions + 1 : scenarioBInteractions + 1;
-        if (scenarioCount >= 7) {
-          await checkAndShowSurvey();
+        // Check if survey should be available (when count reaches 7 for current scenario)
+        // Use the updated scenario count (already incremented above)
+        if (newScenarioCount >= 7) {
+          // Check survey status from backend
+          try {
+            const surveyStatus = await getCharacterSurveyStatus(String(charId));
+            console.log('Survey status:', surveyStatus);
+            if (surveyStatus && surveyStatus.available) {
+              setSurveyAvailable(true);
+              // Don't auto-open, let user click button
+            } else {
+              setSurveyAvailable(false);
+            }
+          } catch (error) {
+            console.warn('Failed to check survey status:', error);
+            // If status check fails, still allow survey if count is 7+
+            setSurveyAvailable(newScenarioCount >= 7);
+          }
+        } else {
+          setSurveyAvailable(false);
         }
       } catch (error) {
         console.warn('Failed to reload user data after message, but message was sent:', error);
@@ -902,9 +965,9 @@ export default function ChatPage({ user }) {
   }
 
   const chatHistory = getCurrentChatHistory();
-  // Use interaction count from /auth/me
-  const currentCount = interactionCount;
-  const hasReachedLimit = currentCount >= 7;
+  // Use scenario-specific interaction count (not total count)
+  const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
+  const hasReachedLimit = currentScenarioCount >= 7;
   // Use assigned agent (one agent per user)
   const currentCharacter = assignedAgent || { 
     id: assignedAgentId, 
@@ -915,6 +978,8 @@ export default function ChatPage({ user }) {
   const handleSurveyComplete = async (characterId, characterName) => {
     // Mark this character's survey as completed
     setCompletedSurveys(prev => new Set([...prev, String(characterId)]));
+    setSurveyAvailable(false); // Survey no longer available after completion
+    setSurveyOpen(false); // Close survey dialog
     console.log(`Survey completed for character ${characterId} (${characterName})`);
     
     // Store previous topic to check if it advanced
@@ -1280,11 +1345,46 @@ export default function ChatPage({ user }) {
           <div ref={messagesEndRef} />
         </Box>
 
-          {/* Completion Message */}
+          {/* Survey Button - Shows when survey is available */}
+          {hasReachedLimit && surveyAvailable && !completedSurveys.has(String(assignedAgentId)) && (
+            <Paper elevation={2} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                  You've completed 7 interactions! Please complete the survey to advance to the next topic.
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={async () => {
+                    try {
+                      // Open survey dialog
+                      setSurveyCharacterId(String(assignedAgentId));
+                      setSurveyCharacterName(assignedAgent?.name || `Agent ${assignedAgentId}`);
+                      setSurveyOpen(true);
+                    } catch (error) {
+                      console.error('Failed to open survey:', error);
+                      alert('Failed to open survey. Please try again.');
+                    }
+                  }}
+                  sx={{
+                    minWidth: '200px',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    borderRadius: '8px',
+                    py: 1
+                  }}
+                >
+                  Complete Survey
+                </Button>
+              </Box>
+            </Paper>
+          )}
+          
+          {/* Completion Message - Shows when limit reached but survey not yet available */}
           {hasReachedLimit && !surveyAvailable && !completedSurveys.has(String(assignedAgentId)) && (
             <Paper elevation={1} sx={{ p: 2, bgcolor: '#fef3c7', borderRadius: '12px', mx: 3, mb: 1 }}>
               <Typography variant="body2" align="center" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                You've completed 7 interactions! Please complete the survey to advance to the next topic.
+                You've completed 7 interactions! The survey will be available shortly.
               </Typography>
             </Paper>
           )}
