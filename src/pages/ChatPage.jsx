@@ -216,10 +216,28 @@ export default function ChatPage({ user }) {
       }
       
       if (data.characters && Array.isArray(data.characters)) {
-        const assignedChar = data.characters.find(c => 
+        // Try to find character by ID first
+        let assignedChar = data.characters.find(c => 
           String(c.id) === String(charId) || 
           String(c.character_id) === String(charId)
         );
+        
+        // Fallback: if no match and only one character, use that one
+        // This handles cases where backend character ID doesn't match participant character ID
+        if (!assignedChar && data.characters.length === 1) {
+          assignedChar = data.characters[0];
+          console.log(`Using fallback: character ID mismatch, using first/only character (ID: ${assignedChar.id}, Name: ${assignedChar.name})`);
+          // Update assignedAgentId to match the actual character ID from participant data
+          if (assignedChar.id) {
+            setAssignedAgentId(String(assignedChar.id));
+            setCurrentCharacterId(String(assignedChar.id));
+            // Update assignedAgent with correct info
+            setAssignedAgent({
+              id: assignedChar.id,
+              name: assignedChar.name || `Agent ${assignedChar.id}`
+            });
+          }
+        }
         
         if (assignedChar) {
           const count = assignedChar.interactions || assignedChar.interaction_count || interactionCount;
@@ -272,7 +290,15 @@ export default function ChatPage({ user }) {
             };
           });
         } else {
-          setParticipant(data);
+          // No character match found, but set chatHistory from first character if available
+          const firstChar = data.characters[0];
+          const fallbackHistory = firstChar?.chatHistory || firstChar?.chat_history || firstChar?.messages || [];
+          setParticipant({
+            ...data,
+            assignedCharacter: firstChar || null,
+            chatHistory: fallbackHistory
+          });
+          console.warn('No character match found, using first character as fallback');
         }
       } else {
         setParticipant(data);
@@ -773,7 +799,17 @@ export default function ChatPage({ user }) {
   useEffect(() => {
     if (user) {
       // Call functions directly - they're now regular functions, not useCallback
-      loadUserData().catch(err => {
+      loadUserData().then(() => {
+        // After user data is loaded, load participant data to get chat history
+        // Use a small delay to ensure assignedAgentId is set
+        setTimeout(() => {
+          if (assignedAgentId || user?.email) {
+            loadParticipant().catch(err => {
+              console.error('Error loading participant data:', err);
+            });
+          }
+        }, 200);
+      }).catch(err => {
         console.error('Error in loadUserData:', err);
         setLoadingParticipant(false); // Ensure loading state is cleared on error
       });
@@ -785,11 +821,19 @@ export default function ChatPage({ user }) {
   }, [user]); // Only depend on user, functions are stable
 
   // Set currentCharacterId when assignedAgentId is set (for backward compatibility)
+  // Also load participant data when assignedAgentId is available
   useEffect(() => {
     if (assignedAgentId && !currentCharacterId) {
       setCurrentCharacterId(String(assignedAgentId));
     }
-  }, [assignedAgentId, currentCharacterId]);
+    // Load participant data when we have an assigned agent ID
+    if (assignedAgentId && user?.email) {
+      loadParticipant().catch(err => {
+        console.error('Error loading participant data:', err);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedAgentId, currentCharacterId, user]);
 
   // Auto-scroll to bottom when chat history changes or new messages arrive
   useEffect(() => {
@@ -1045,7 +1089,7 @@ export default function ChatPage({ user }) {
     if (!participant) return [];
     
     // Use chatHistory directly if stored, otherwise look in characters array
-    if (participant.chatHistory && Array.isArray(participant.chatHistory)) {
+    if (participant.chatHistory && Array.isArray(participant.chatHistory) && participant.chatHistory.length > 0) {
       // Sort by timestamp in ascending order (oldest first, newest last)
       return [...participant.chatHistory].sort((a, b) => {
         const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
@@ -1055,26 +1099,42 @@ export default function ChatPage({ user }) {
       });
     }
     
-    // Fallback: look in assignedCharacter or characters array
-    const character = participant.assignedCharacter || 
-      (participant.characters && participant.characters.find(c => 
+    // Fallback: look in assignedCharacter first
+    if (participant.assignedCharacter) {
+      const chatHistory = participant.assignedCharacter.chatHistory || 
+                         participant.assignedCharacter.chat_history || 
+                         participant.assignedCharacter.messages || [];
+      if (chatHistory.length > 0) {
+        return [...chatHistory].sort((a, b) => {
+          const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+          const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+          return timeA - timeB;
+        });
+      }
+    }
+    
+    // Fallback: try to find character by ID in characters array
+    if (participant.characters && Array.isArray(participant.characters)) {
+      const character = participant.characters.find(c => 
         String(c.id) === String(assignedAgentId) || 
-        String(c.id) === String(currentCharacterId)
-      ));
+        String(c.id) === String(currentCharacterId) ||
+        String(c.character_id) === String(assignedAgentId) ||
+        String(c.character_id) === String(currentCharacterId)
+      ) || participant.characters[0]; // Fallback to first character if no match
+      
+      if (character) {
+        const chatHistory = character.chatHistory || character.chat_history || character.messages || [];
+        if (chatHistory.length > 0) {
+          return [...chatHistory].sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            return timeA - timeB;
+          });
+        }
+      }
+    }
     
-    if (!character) return [];
-    
-    // Get chat history for this character (from backend structure)
-    // Backend returns: character.chatHistory array with { sender, message, timestamp }
-    const chatHistory = character.chatHistory || character.chat_history || character.messages || [];
-    
-    // Sort by timestamp in ascending order (oldest first, newest last)
-    return [...chatHistory].sort((a, b) => {
-      const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-      const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-      // Return ascending order: oldest messages first, newest at bottom
-      return timeA - timeB;
-    });
+    return [];
   };
 
   // Send Message: Call POST /chat endpoint
