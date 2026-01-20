@@ -190,16 +190,84 @@ export default function ChatPage({ user }) {
       setCurrentScenario(scenario);
       setScenarioAutoSent(false); // Reset auto-sent flag for new scenario
       
-      // Initialize scenario (auto-send scenario text)
+      // Get the scenario text
+      const scenarioText = scenario === 'A' 
+        ? topicInfo.functional_scenario 
+        : topicInfo.experiential_scenario;
+      
+      if (!scenarioText) {
+        console.error('No scenario text available');
+        return;
+      }
+      
+      // Auto-send the scenario text as a user message
+      console.log(`Auto-sending Scenario ${scenario} text:`, scenarioText);
+      
       try {
-        await initializeScenario(String(assignedAgentId));
+        // Send scenario message to backend
+        const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
+        console.log('Scenario auto-sent response:', chatResponse);
+        
+        // Mark as auto-sent
         setScenarioAutoSent(true);
         
-        // Reload chat history for the selected scenario
-        await loadChatHistoryForScenario();
+        // Add the auto-sent user message to chat history immediately
+        const autoMessage = {
+          sender: 'participant',
+          message: scenarioText,
+          timestamp: new Date().toISOString(),
+          role: 'user',
+          isAutoSent: true
+        };
+        
+        // Add agent response immediately
+        const agentReply = chatResponse.reply || chatResponse.message || chatResponse.response || 'I understand. How can I help you with this?';
+        const agentResponse = {
+          sender: 'agent',
+          message: agentReply,
+          timestamp: new Date().toISOString(),
+          role: 'assistant',
+          isAutoSent: true // Mark agent's auto-response
+        };
+        
+        // Update participant state to include both messages immediately
+        setParticipant(prev => {
+          if (!prev) {
+            return {
+              chatHistory: [autoMessage, agentResponse],
+              characters: []
+            };
+          }
+          const existingHistory = prev.chatHistory || [];
+          // Check if message already exists to avoid duplicates
+          const alreadyExists = existingHistory.some(msg => 
+            msg.message === scenarioText && msg.isAutoSent
+          );
+          if (alreadyExists) return prev;
+          
+          return {
+            ...prev,
+            chatHistory: [...existingHistory, autoMessage, agentResponse]
+          };
+        });
+        
+        // Scroll to bottom to show the new messages
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+        
+        // Reload chat history from backend after a short delay to ensure full sync
+        setTimeout(async () => {
+          try {
+            await loadChatHistoryForScenario();
+          } catch (err) {
+            console.error('Failed to reload chat history after auto-send:', err);
+          }
+        }, 500);
+        
       } catch (initError) {
-        console.error('Failed to initialize scenario:', initError);
-        // Continue anyway - user can still chat
+        console.error('Failed to auto-send scenario:', initError);
+        alert('Failed to send scenario message. Please try again.');
       }
       
       // Reload topic data to get updated scenario status
@@ -424,9 +492,12 @@ export default function ChatPage({ user }) {
       // Extract current scenario from /auth/me (backend tracks this)
       if (userData.current_scenario === 'A' || userData.current_scenario === 'B') {
         // Use backend value if we don't have a selection yet, or if it's different
-        if (!currentScenario || currentScenario !== userData.current_scenario) {
-          setCurrentScenario(userData.current_scenario);
-          console.log(`Current scenario from backend: ${userData.current_scenario}`);
+        const newScenario = userData.current_scenario;
+        if (!currentScenario || currentScenario !== newScenario) {
+          setCurrentScenario(newScenario);
+          console.log(`Current scenario from backend: ${newScenario}`);
+          // Auto-send scenario message if topic info is available
+          // This will be handled by the useEffect that watches currentScenario and topicInfo
         }
       }
       
@@ -513,6 +584,106 @@ export default function ChatPage({ user }) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [participant, currentCharacterId]);
+
+  // Auto-send scenario message when scenario is selected and topic info is loaded
+  useEffect(() => {
+    const autoSendScenarioOnLoad = async () => {
+      // Only auto-send if:
+      // 1. We have a scenario selected
+      // 2. We have topic info
+      // 3. We have an assigned agent
+      // 4. We haven't already auto-sent
+      // 5. We're not currently loading
+      if (
+        currentScenario && 
+        topicInfo && 
+        assignedAgentId && 
+        !scenarioAutoSent && 
+        !loading &&
+        !loadingParticipant
+      ) {
+        const scenarioText = currentScenario === 'A' 
+          ? topicInfo.functional_scenario 
+          : topicInfo.experiential_scenario;
+        
+        if (!scenarioText) return;
+        
+        console.log(`Auto-sending Scenario ${currentScenario} on load:`, scenarioText);
+        
+        try {
+          setLoading(true);
+          
+          // Send scenario message to backend
+          const chatResponse = await sendChat(String(assignedAgentId), scenarioText);
+          console.log('Scenario auto-sent response on load:', chatResponse);
+          
+          // Mark as auto-sent
+          setScenarioAutoSent(true);
+          
+          // Add the auto-sent user message to chat history immediately
+          const autoMessage = {
+            sender: 'participant',
+            message: scenarioText,
+            timestamp: new Date().toISOString(),
+            role: 'user',
+            isAutoSent: true
+          };
+          
+          // Add agent response immediately
+          const agentReply = chatResponse.reply || chatResponse.message || chatResponse.response || 'I understand. How can I help you with this?';
+          const agentResponse = {
+            sender: 'agent',
+            message: agentReply,
+            timestamp: new Date().toISOString(),
+            role: 'assistant',
+            isAutoSent: true
+          };
+          
+          // Update participant state to include both messages immediately
+          setParticipant(prev => {
+            if (!prev) {
+              return {
+                chatHistory: [autoMessage, agentResponse],
+                characters: []
+              };
+            }
+            const existingHistory = prev.chatHistory || [];
+            // Check if message already exists to avoid duplicates
+            const alreadyExists = existingHistory.some(msg => 
+              msg.message === scenarioText && msg.isAutoSent
+            );
+            if (alreadyExists) return prev;
+            
+            return {
+              ...prev,
+              chatHistory: [...existingHistory, autoMessage, agentResponse]
+            };
+          });
+          
+          // Scroll to bottom to show the new messages
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+          
+          // Reload chat history from backend after a short delay to ensure full sync
+          setTimeout(async () => {
+            try {
+              await loadChatHistoryForScenario();
+            } catch (err) {
+              console.error('Failed to reload chat history after auto-send:', err);
+            }
+          }, 500);
+        } catch (error) {
+          console.error('Failed to auto-send scenario on load:', error);
+          // Don't show alert - just log the error
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    autoSendScenarioOnLoad();
+  }, [currentScenario, topicInfo, assignedAgentId, scenarioAutoSent, loading, loadingParticipant]);
 
   // Check for survey eligibility when scenario interaction count reaches 7
   useEffect(() => {
