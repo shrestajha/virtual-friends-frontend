@@ -1181,11 +1181,22 @@ export default function ChatPage({ user }) {
     }
   };
 
+  // Debug logging
+  console.log('[ChatPage] Render state:', {
+    loadingParticipant,
+    user: !!user,
+    assignedAgentId,
+    assignedAgent: !!assignedAgent,
+    userCharacters: user?.characters,
+    displayAgentId,
+    displayAgent: !!displayAgent
+  });
+
   if (loadingParticipant) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px" sx={{ width: '100%', height: '100%' }}>
         <CircularProgress />
-        <Typography variant="body2" sx={{ ml: 2 }}>Loading...</Typography>
+        <Typography variant="body2" sx={{ ml: 2 }}>Loading chat...</Typography>
       </Box>
     );
   }
@@ -1198,24 +1209,30 @@ export default function ChatPage({ user }) {
   };
   const displayAgentId = assignedAgentId || user?.characters?.[0]?.id;
   
-  // If we still don't have an agent after user data should be loaded, show loading message
-  if (!displayAgentId && !loadingParticipant) {
+  // If we still don't have an agent after user data should be loaded, show error message
+  // But allow rendering to continue with fallback values to prevent blank page
+  if (!displayAgentId && !loadingParticipant && !user?.characters?.length) {
     return (
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', p: 3 }}>
           <Box>
-            <CircularProgress sx={{ mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" align="center">
-              Loading your agent...
+            <Typography variant="h6" color="error" align="center">
+              No agent assigned
             </Typography>
             <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
-              If this persists, please refresh the page.
+              Please contact support if you believe this is an error.
+            </Typography>
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1, fontSize: '0.75rem' }}>
+              Debug: user={user ? 'exists' : 'null'}, characters={user?.characters?.length || 0}
             </Typography>
           </Box>
         </Box>
       </Box>
     );
   }
+  
+  // Always render the chat interface, even if agent data isn't fully loaded
+  // Use fallback values to prevent blank page
 
   const chatHistory = getCurrentChatHistory();
   // Use scenario-specific interaction count (not total count)
@@ -1390,6 +1407,17 @@ export default function ChatPage({ user }) {
       inputRef.current?.focus();
     }, 100);
   };
+
+  // Safety check: ensure we always render something
+  if (!user) {
+    console.error('[ChatPage] No user provided!');
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" color="error">Error: No user data available</Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>Please log in again.</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
