@@ -1211,43 +1211,6 @@ export default function ChatPage({ user }) {
           </Alert>
         )}
 
-            {/* Topic Progress Indicator */}
-            {currentTopic && (
-              <Paper elevation={1} sx={{ m: 2, mb: 1, p: 2, bgcolor: '#fff' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  Topic Progress
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Topic {currentTopic} of 11
-                </Typography>
-                <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(topicNum => (
-                    <Box
-                      key={topicNum}
-                      sx={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        bgcolor: topicsCompleted.includes(topicNum) 
-                          ? '#10b981' 
-                          : topicNum === currentTopic 
-                            ? '#2563eb' 
-                            : '#e5e7eb',
-                        color: topicsCompleted.includes(topicNum) || topicNum === currentTopic ? 'white' : '#9ca3af',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.75rem',
-                        fontWeight: 600
-                      }}
-                    >
-                      {topicsCompleted.includes(topicNum) ? '✓' : topicNum}
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
-            )}
-
             {/* Topic Display */}
             {topicInfo && (
               <Box sx={{ p: 2, pb: 1 }}>
