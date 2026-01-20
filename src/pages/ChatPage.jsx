@@ -886,7 +886,7 @@ export default function ChatPage({ user }) {
       return;
     }
     
-    // Check interaction limit for current scenario (7 interactions per scenario)
+    // Check if survey is required (mandatory before proceeding)
     const currentScenarioCount = currentScenario === 'A' ? scenarioAInteractions : scenarioBInteractions;
     const isCompleted = currentScenario === 'A' ? scenarioACompleted : scenarioBCompleted;
     
@@ -895,7 +895,21 @@ export default function ChatPage({ user }) {
       return;
     }
     
+    // Check if survey is available but not completed - make it mandatory
     if (currentScenarioCount >= 7) {
+      try {
+        const surveyStatus = await getCharacterSurveyStatus(String(charId));
+        if (surveyStatus && surveyStatus.available && !surveyStatus.completed) {
+          // Survey is available but not completed - open it
+          setSurveyCharacterId(String(charId));
+          setSurveyCharacterName(assignedAgent?.name || `Agent ${charId}`);
+          setSurveyOpen(true);
+          alert('You have reached 7 interactions. Please complete the survey to continue.');
+          return;
+        }
+      } catch (surveyError) {
+        console.error('Failed to check survey status:', surveyError);
+      }
       alert(`You have reached the interaction limit for Scenario ${currentScenario}. Please complete the survey to continue.`);
       return;
     }
@@ -1085,12 +1099,36 @@ export default function ChatPage({ user }) {
       console.error('Failed to send message:', error);
       const errorMessage = error.message || '';
       
-      // Handle 403 error - survey required
-      if (errorMessage.includes('403') || errorMessage.includes('survey') || errorMessage.includes('Please complete')) {
-        alert('Please complete the signup survey before accessing chat features.');
-        // Redirect to signup survey
-        window.history.pushState({}, "", "/signup-survey");
-        window.dispatchEvent(new PopStateEvent('popstate'));
+      // Handle 403 error - interaction limit reached, survey required
+      if (errorMessage.includes('403') || errorMessage.includes('survey') || errorMessage.includes('Please complete') || errorMessage.includes('interaction')) {
+        // Lock the input by setting interaction count to 7 (triggers hasReachedLimit)
+        if (currentScenario === 'A') {
+          setScenarioAInteractions(7);
+        } else if (currentScenario === 'B') {
+          setScenarioBInteractions(7);
+        }
+        setInput('');
+        
+        // Check if survey is available and open it
+        if (assignedAgentId && currentScenario) {
+          try {
+            const surveyStatus = await getCharacterSurveyStatus(String(assignedAgentId));
+            if (surveyStatus && surveyStatus.available) {
+              // Open survey dialog - survey is mandatory
+              setSurveyCharacterId(String(assignedAgentId));
+              setSurveyCharacterName(assignedAgent?.name || `Agent ${assignedAgentId}`);
+              setSurveyOpen(true);
+              setSurveyAvailable(true);
+            } else {
+              alert('You have reached 7 interactions. Please complete the survey to continue.');
+            }
+          } catch (surveyError) {
+            console.error('Failed to check survey status:', surveyError);
+            alert('You have reached 7 interactions. Please complete the survey to continue.');
+          }
+        } else {
+          alert('You have reached 7 interactions. Please complete the survey to continue.');
+        }
         return;
       }
       
@@ -1179,9 +1217,16 @@ export default function ChatPage({ user }) {
     // Mark current scenario as completed
     if (currentScenario === 'A') {
       setScenarioACompleted(true);
+      // Reset interaction count for Scenario A after survey completion
+      setScenarioAInteractions(0);
     } else if (currentScenario === 'B') {
       setScenarioBCompleted(true);
+      // Reset interaction count for Scenario B after survey completion
+      setScenarioBInteractions(0);
     }
+    
+    // Reset the interaction limit state so user can continue chatting
+    setInteractionCount(0);
     
     // Store previous topic to check if it advanced
     const previousTopic = currentTopic;
@@ -1278,6 +1323,15 @@ export default function ChatPage({ user }) {
       if (agentId) {
         await loadParticipant(String(agentId));
       }
+      
+      // Reset interaction counts after survey completion so user can continue
+      // The backend should reset these, but we'll also reset locally
+      if (currentScenario === 'A') {
+        setScenarioAInteractions(0);
+      } else if (currentScenario === 'B') {
+        setScenarioBInteractions(0);
+      }
+      setInteractionCount(0);
       
       // Show success message
       alert(`Survey completed! Thank you for your feedback. You can continue chatting with ${characterName}.`);
@@ -1482,7 +1536,7 @@ export default function ChatPage({ user }) {
                   <Typography variant="body1" sx={{ lineHeight: 1.6, wordBreak: 'break-word' }}>
                     {msg.message || msg.content}
                   </Typography>
-                  {(msg.timestamp || msg.created_at) && (
+                  {(msg.timestamp || msg.created_at || msg.created_at_est) && (
                     <Typography 
                       variant="caption" 
                       sx={{ 
@@ -1492,7 +1546,10 @@ export default function ChatPage({ user }) {
                         fontSize: '0.75rem'
                       }}
                     >
-                      {new Date(msg.timestamp || msg.created_at).toLocaleTimeString()}
+                      {msg.created_at_est 
+                        ? msg.created_at_est 
+                        : new Date(msg.timestamp || msg.created_at).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })
+                      }
                     </Typography>
                   )}
                 </Box>
