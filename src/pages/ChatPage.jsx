@@ -222,13 +222,20 @@ export default function ChatPage({ user }) {
           String(c.character_id) === String(charId)
         );
         
-        // Fallback: if no match and only one character, use that one
+        // Aggressive fallback: if no match, ALWAYS use the first character that has chat history
         // This handles cases where backend character ID doesn't match participant character ID
-        if (!assignedChar && data.characters.length === 1) {
-          assignedChar = data.characters[0];
-          console.log(`Using fallback: character ID mismatch, using first/only character (ID: ${assignedChar.id}, Name: ${assignedChar.name})`);
+        if (!assignedChar) {
+          // Find first character with chat history, or just use first character
+          assignedChar = data.characters.find(c => 
+            (c.chatHistory && c.chatHistory.length > 0) ||
+            (c.chat_history && c.chat_history.length > 0) ||
+            (c.messages && c.messages.length > 0)
+          ) || data.characters[0];
+          
+          console.log(`Using fallback: character ID mismatch (looking for ${charId}), using character (ID: ${assignedChar?.id}, Name: ${assignedChar?.name}) with chat history`);
+          
           // Update assignedAgentId to match the actual character ID from participant data
-          if (assignedChar.id) {
+          if (assignedChar && assignedChar.id) {
             setAssignedAgentId(String(assignedChar.id));
             setCurrentCharacterId(String(assignedChar.id));
             // Update assignedAgent with correct info
@@ -1088,7 +1095,7 @@ export default function ChatPage({ user }) {
   const getCurrentChatHistory = () => {
     if (!participant) return [];
     
-    // Use chatHistory directly if stored, otherwise look in characters array
+    // Use chatHistory directly if stored (highest priority)
     if (participant.chatHistory && Array.isArray(participant.chatHistory) && participant.chatHistory.length > 0) {
       // Sort by timestamp in ascending order (oldest first, newest last)
       return [...participant.chatHistory].sort((a, b) => {
@@ -1115,12 +1122,27 @@ export default function ChatPage({ user }) {
     
     // Fallback: try to find character by ID in characters array
     if (participant.characters && Array.isArray(participant.characters)) {
-      const character = participant.characters.find(c => 
+      // First try to find by ID match
+      let character = participant.characters.find(c => 
         String(c.id) === String(assignedAgentId) || 
         String(c.id) === String(currentCharacterId) ||
         String(c.character_id) === String(assignedAgentId) ||
         String(c.character_id) === String(currentCharacterId)
-      ) || participant.characters[0]; // Fallback to first character if no match
+      );
+      
+      // If no ID match, find the character with the most chat history
+      if (!character) {
+        character = participant.characters.reduce((prev, current) => {
+          const prevHistory = prev?.chatHistory || prev?.chat_history || prev?.messages || [];
+          const currentHistory = current?.chatHistory || current?.chat_history || current?.messages || [];
+          return currentHistory.length > prevHistory.length ? current : prev;
+        }, participant.characters[0]);
+      }
+      
+      // Final fallback: use first character
+      if (!character) {
+        character = participant.characters[0];
+      }
       
       if (character) {
         const chatHistory = character.chatHistory || character.chat_history || character.messages || [];
