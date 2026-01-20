@@ -110,8 +110,8 @@ export default function ChatPage({ user }) {
     }
   }, [completedSurveys, currentCharacterId]);
 
-  // Fetch current topic information
-  const loadCurrentTopic = useCallback(async () => {
+  // Fetch current topic information - use regular function to avoid circular dependency issues
+  const loadCurrentTopic = async () => {
     if (!user) return;
     
     try {
@@ -119,8 +119,24 @@ export default function ChatPage({ user }) {
       const topicData = await getCurrentTopic();
       console.log('Current topic data:', topicData);
       
-      const previousTopic = currentTopic;
-      setCurrentTopic(topicData.current_topic);
+      // Use functional update to get current value without dependency
+      setCurrentTopic(prevTopic => {
+        const previousTopic = prevTopic;
+        
+        // If topic changed, reset scenario states for new topic
+        if (previousTopic !== null && previousTopic !== topicData.current_topic) {
+          // New topic - reset scenario states and start with Scenario A
+          setCurrentScenario('A');
+          setScenarioACompleted(false);
+          setScenarioBCompleted(false);
+          setScenarioAInteractions(0);
+          setScenarioBInteractions(0);
+          setScenarioAutoSent(false);
+        }
+        
+        return topicData.current_topic;
+      });
+      
       setTopicInfo(topicData.topic_info);
       
       // Parse topics_completed (can be array or comma-separated string)
@@ -163,24 +179,13 @@ export default function ChatPage({ user }) {
       }
       
       setCanAdvance(topicData.can_advance || false);
-      
-      // If topic changed, reset scenario states for new topic (but preserve if same topic)
-      if (previousTopic !== null && previousTopic !== topicData.current_topic) {
-        // New topic - reset scenario states and start with Scenario A
-        setCurrentScenario('A');
-        setScenarioACompleted(false);
-        setScenarioBCompleted(false);
-        setScenarioAInteractions(0);
-        setScenarioBInteractions(0);
-        setScenarioAutoSent(false);
-      }
     } catch (error) {
       console.error('Failed to load current topic:', error);
       // Don't show error to user, topics are optional
     } finally {
       setTopicLoading(false);
     }
-  }, [user, currentTopic]);
+  };
   
   // Load participant data - defined as regular function (not useCallback) to avoid circular dependencies
   const loadParticipant = async (characterId) => {
@@ -434,9 +439,7 @@ export default function ChatPage({ user }) {
       }, 500);
       
       // Reload topic data to get updated scenario status
-      if (loadCurrentTopic) {
-        await loadCurrentTopic();
-      }
+      await loadCurrentTopic();
       
     } catch (error) {
       console.error('Failed to select scenario:', error);
@@ -446,8 +449,8 @@ export default function ChatPage({ user }) {
     }
   };
 
-  // Load chat history for current scenario
-  const loadChatHistoryForScenario = useCallback(async () => {
+  // Load chat history for current scenario - use regular function to avoid circular dependency
+  const loadChatHistoryForScenario = async () => {
     if (!assignedAgentId) return;
     
     try {
@@ -501,7 +504,7 @@ export default function ChatPage({ user }) {
         console.error('Failed to load participant as fallback:', fallbackError);
       }
     }
-  }, [assignedAgentId, user]);
+  };
   
   // Handle scenario selection from dropdown (legacy - keeping for backward compatibility)
   const handleScenarioChange = async (event) => {
