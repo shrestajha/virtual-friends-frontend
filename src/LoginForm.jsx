@@ -121,37 +121,6 @@ export default function LoginForm({
     }
   }
 
-  /* ------------------ Shared UI ------------------ */
-
-  const PasswordInput = () => (
-    <div style={{ position: "relative" }}>
-      <input
-        className="input"
-        type={showPassword ? "text" : "password"}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        required
-        style={{ width: "100%", paddingRight: 40 }}
-      />
-      <button
-        type="button"
-        onClick={() => setShowPassword((p) => !p)}
-        style={{
-          position: "absolute",
-          right: 12,
-          top: "50%",
-          transform: "translateY(-50%)",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--muted)",
-        }}
-      >
-        {showPassword ? "🙈" : "👁️"}
-      </button>
-    </div>
-  );
 
   /* ------------------ Login ------------------ */
 
@@ -170,7 +139,33 @@ export default function LoginForm({
             required
           />
 
-          <PasswordInput />
+          <div style={{ position: "relative" }}>
+            <input
+              className="input"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              style={{ width: "100%", paddingRight: 40 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((p) => !p)}
+              style={{
+                position: "absolute",
+                right: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--muted)",
+              }}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
 
           <button className="button" style={{ width: "100%" }}>
             Log In
@@ -201,7 +196,33 @@ export default function LoginForm({
           required
         />
 
-        <PasswordInput />
+        <div style={{ position: "relative" }}>
+          <input
+            className="input"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            required
+            style={{ width: "100%", paddingRight: 40 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((p) => !p)}
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--muted)",
+            }}
+          >
+            {showPassword ? "🙈" : "👁️"}
+          </button>
+        </div>
 
         {password && (
           <p>
