@@ -1856,3 +1856,6 @@ export default function ChatPage({ user }) {
     </Box>
   );
 }
+
+
+}
