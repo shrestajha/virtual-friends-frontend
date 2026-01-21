@@ -39,56 +39,93 @@ export default function ChatPage({ user }) {
         const userData = await me();
         console.log('[ChatPage] User data received:', userData);
         
+        // Extract topic and scenario from /auth/me first (most reliable)
+        let topicFromAuth = null;
+        let scenarioFromAuth = null;
+        
+        if (typeof userData.current_topic === 'number') {
+          topicFromAuth = userData.current_topic;
+          console.log('[ChatPage] Topic from /auth/me:', topicFromAuth);
+          setCurrentTopic(topicFromAuth);
+        }
+        if (userData.current_scenario === 'A' || userData.current_scenario === 'B') {
+          scenarioFromAuth = userData.current_scenario;
+          console.log('[ChatPage] Scenario from /auth/me:', scenarioFromAuth);
+          setCurrentScenario(scenarioFromAuth);
+        }
+        
         if (userData.characters && userData.characters.length > 0) {
           const char = userData.characters[0];
           console.log('[ChatPage] Setting character:', char);
           setSelectedCharacter(char);
           setInteractionCount(char.message_count || char.interactions || 0);
-    } else {
+        } else {
           console.warn('[ChatPage] No characters found in user data');
-    }
+        }
 
-        // Load current topic and scenario
-    try {
-          console.log('[ChatPage] Fetching topic data from /topics/current...');
-      const topicData = await getCurrentTopic();
+        // Load topic details from /topics/current (for scenario prompts)
+        try {
+          console.log('[ChatPage] Fetching topic details from /topics/current...');
+          const topicData = await getCurrentTopic();
           console.log('[ChatPage] Topic data received:', topicData);
-          setCurrentTopic(topicData.current_topic);
-      setTopicInfo(topicData.topic_info);
-      
-          // Set current scenario (A or B)
-      if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
-        setCurrentScenario(topicData.current_scenario);
-      } else if (!topicData.scenario_a_completed) {
-        setCurrentScenario('A');
-            // Initialize Scenario A if not already done
-            if (userData.characters && userData.characters.length > 0) {
-              try {
-                await selectScenario('A');
-              } catch (err) {
-                console.error('Failed to initialize Scenario A:', err);
+          
+          // Use topic number from /topics/current if not already set from /auth/me
+          if (typeof topicData.current_topic === 'number' && !topicFromAuth) {
+            console.log('[ChatPage] Topic from /topics/current:', topicData.current_topic);
+            setCurrentTopic(topicData.current_topic);
+          }
+          
+          // Store topic info for scenario prompts
+          if (topicData.topic_info) {
+            setTopicInfo(topicData.topic_info);
+          }
+          
+          // Set current scenario from /topics/current if not already set from /auth/me
+          if (!scenarioFromAuth) {
+            if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
+              console.log('[ChatPage] Scenario from /topics/current:', topicData.current_scenario);
+              setCurrentScenario(topicData.current_scenario);
+            } else if (!topicData.scenario_a_completed) {
+              console.log('[ChatPage] Setting Scenario A (default)');
+              setCurrentScenario('A');
+              // Initialize Scenario A if not already done
+              if (userData.characters && userData.characters.length > 0) {
+                try {
+                  await selectScenario('A');
+                } catch (err) {
+                  console.error('Failed to initialize Scenario A:', err);
+                }
               }
-            }
-          } else if (topicData.scenario_a_completed && !topicData.scenario_b_completed) {
-            setCurrentScenario('B');
-            // Initialize Scenario B if not already done
-            if (userData.characters && userData.characters.length > 0) {
-              try {
-                await selectScenario('B');
-        } catch (err) {
-                console.error('Failed to initialize Scenario B:', err);
+            } else if (topicData.scenario_a_completed && !topicData.scenario_b_completed) {
+              console.log('[ChatPage] Setting Scenario B (A completed)');
+              setCurrentScenario('B');
+              // Initialize Scenario B if not already done
+              if (userData.characters && userData.characters.length > 0) {
+                try {
+                  await selectScenario('B');
+                } catch (err) {
+                  console.error('Failed to initialize Scenario B:', err);
+                }
               }
             }
           }
         } catch (topicError) {
           console.error('Failed to load topic data (this may be a backend issue):', topicError);
-          // Set defaults so UI still works
-          setCurrentTopic(1);
-          setCurrentScenario('A');
-          setTopicInfo({
-            functional_scenario: 'Please wait for topic data to load...',
-            experiential_scenario: 'Please wait for topic data to load...'
-          });
+          // Only set defaults if we don't have data from /auth/me
+          if (!topicFromAuth) {
+            console.log('[ChatPage] Setting default topic: 1');
+            setCurrentTopic(1);
+          }
+          if (!scenarioFromAuth) {
+            console.log('[ChatPage] Setting default scenario: A');
+            setCurrentScenario('A');
+          }
+          if (!topicInfo) {
+            setTopicInfo({
+              functional_scenario: 'Please wait for topic data to load...',
+              experiential_scenario: 'Please wait for topic data to load...'
+            });
+          }
         }
 
         // Load chat history
