@@ -1,55 +1,348 @@
-import React, { useMemo, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { 
+  getCurrentTopic, 
+  selectScenario, 
+  getChatHistory, 
+  me,
+  getCharacterSurveyStatus
+} from "../api";
 import ChatBox from "../components/ChatBox";
+import CharacterInteractionSurvey from "../components/CharacterInteractionSurvey";
 
-/**
- * Clean, always-visible chat page.
- * Uses the existing ChatBox + styles from `src/styles.css`.
- */
 export default function ChatPage({ user }) {
-  const selectedCharacter = useMemo(() => {
-    // Backend assigns one character per user; App also keeps this on `user.characters[0]`.
-    const first = user?.characters?.[0];
-    return first?.id ? first : null;
+  const [selectedCharacter, setSelectedCharacter] = useState(null);
+  const [currentTopic, setCurrentTopic] = useState(null);
+  const [topicInfo, setTopicInfo] = useState(null);
+  const [currentScenario, setCurrentScenario] = useState(null);
+  const [interactionCount, setInteractionCount] = useState(0);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [surveyAvailable, setSurveyAvailable] = useState(false);
+  const [completedSurveys, setCompletedSurveys] = useState(new Set());
+
+  // Load initial data
+  useEffect(() => {
+    if (!user) return;
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get user's assigned character
+        const userData = await me();
+        if (userData.characters && userData.characters.length > 0) {
+          const char = userData.characters[0];
+          setSelectedCharacter(char);
+          setInteractionCount(char.message_count || char.interactions || 0);
+        }
+
+        // Load current topic and scenario
+        const topicData = await getCurrentTopic();
+        setCurrentTopic(topicData.current_topic);
+        setTopicInfo(topicData.topic_info);
+        
+        // Set current scenario (A or B)
+        if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
+          setCurrentScenario(topicData.current_scenario);
+        } else if (!topicData.scenario_a_completed) {
+          setCurrentScenario('A');
+          // Initialize Scenario A if not already done
+          if (userData.characters && userData.characters.length > 0) {
+            try {
+              await selectScenario('A');
+            } catch (err) {
+              console.error('Failed to initialize Scenario A:', err);
+            }
+          }
+        } else if (topicData.scenario_a_completed && !topicData.scenario_b_completed) {
+          setCurrentScenario('B');
+          // Initialize Scenario B if not already done
+          if (userData.characters && userData.characters.length > 0) {
+            try {
+              await selectScenario('B');
+            } catch (err) {
+              console.error('Failed to initialize Scenario B:', err);
+            }
+          }
+        }
+
+        // Load chat history
+        if (userData.characters && userData.characters.length > 0) {
+          const charId = userData.characters[0].id;
+          try {
+            const history = await getChatHistory(String(charId));
+            if (Array.isArray(history)) {
+              // Sort by timestamp
+              const sorted = [...history].sort((a, b) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeA - timeB;
+              });
+              setChatHistory(sorted);
+            }
+          } catch (err) {
+            console.error('Failed to load chat history:', err);
+          }
+        }
+
+        // Check survey availability
+        if (userData.characters && userData.characters.length > 0) {
+          const charId = userData.characters[0].id;
+          try {
+            const surveyStatus = await getCharacterSurveyStatus(String(charId));
+            setSurveyAvailable(surveyStatus.available || false);
+          } catch (err) {
+            console.error('Failed to check survey status:', err);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [user]);
 
-  // Keep a local counter so the ChatBox never looks "disabled" due to missing counts.
-  const [localMessageCount, setLocalMessageCount] = useState(0);
-  const maxMessages = 1000000; // effectively unlimited for now
+  // Check if survey should be shown (7 interactions reached)
+  useEffect(() => {
+    if (interactionCount >= 7 && surveyAvailable && !surveyOpen && selectedCharacter) {
+      const charId = String(selectedCharacter.id);
+      if (!completedSurveys.has(charId)) {
+        setSurveyOpen(true);
+      }
+    }
+  }, [interactionCount, surveyAvailable, surveyOpen, selectedCharacter, completedSurveys]);
+
+  // Handle message sent - increment interaction count and reload data
+  const handleMessageSent = async () => {
+    setInteractionCount(prev => prev + 1);
+    
+    // Reload user data to get updated interaction count from backend
+    try {
+      const userData = await me();
+      if (userData.characters && userData.characters.length > 0) {
+        const char = userData.characters[0];
+        const newCount = char.message_count || char.interactions || 0;
+        setInteractionCount(newCount);
+      }
+      
+      // Reload chat history to get latest messages
+      if (selectedCharacter) {
+        const history = await getChatHistory(String(selectedCharacter.id));
+        if (Array.isArray(history)) {
+          const sorted = [...history].sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            return timeA - timeB;
+          });
+          setChatHistory(sorted);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to reload data after message:', err);
+    }
+  };
+
+  // Handle survey completion
+  const handleSurveyComplete = async (characterId, characterName) => {
+    setCompletedSurveys(prev => new Set([...prev, String(characterId)]));
+    setSurveyOpen(false);
+    setSurveyAvailable(false);
+    
+    // Reload topic data to see if we should advance
+    try {
+      const topicData = await getCurrentTopic();
+      setCurrentTopic(topicData.current_topic);
+      setTopicInfo(topicData.topic_info);
+      
+      // If Scenario A completed, move to Scenario B
+      if (currentScenario === 'A' && topicData.scenario_a_completed) {
+        setCurrentScenario('B');
+        setInteractionCount(0);
+        // Auto-select Scenario B
+        try {
+          await selectScenario('B');
+        } catch (err) {
+          console.error('Failed to select Scenario B:', err);
+        }
+      } 
+      // If Scenario B completed, move to next topic
+      else if (currentScenario === 'B' && topicData.scenario_b_completed) {
+        setCurrentScenario(null);
+        setInteractionCount(0);
+        // Topic will advance automatically on backend
+      }
+    } catch (error) {
+      console.error('Failed to reload topic data:', error);
+    }
+  };
+
+  // Get scenario prompt text
+  const getScenarioPrompt = () => {
+    if (!topicInfo || !currentScenario) return null;
+    return currentScenario === 'A' 
+      ? topicInfo.functional_scenario 
+      : topicInfo.experiential_scenario;
+  };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100%' 
+      }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
+  const scenarioPrompt = getScenarioPrompt();
 
   return (
-    <div
-      className="container"
-      style={{
-        height: "100%",
-        maxWidth: "52rem",
-        paddingTop: 16,
-        paddingBottom: 16,
-      }}
-    >
-      <div className="panel" style={{ padding: 16, marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 600 }}>
-            {selectedCharacter ? `Chatting with: ${selectedCharacter.name || "Your agent"}` : "No agent assigned"}
+    <div style={{ 
+      display: 'flex', 
+      flex: 1,
+      minHeight: 0,
+      overflow: 'hidden',
+      backgroundColor: '#f9fafb'
+    }}>
+      {/* Sidebar */}
+      <div style={{
+        width: '280px',
+        flexShrink: 0,
+        borderRight: '1px solid #e5e7eb',
+        backgroundColor: '#ffffff',
+        display: 'flex',
+        flexDirection: 'column',
+        overflowY: 'auto'
+      }}>
+        {/* Topic/Scenario Header */}
+        <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ 
+            fontSize: '14px', 
+            fontWeight: 600, 
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            marginBottom: '8px'
+          }}>
+            Topic {currentTopic || 'N/A'}
           </div>
-          <div className="meta" style={{ marginLeft: "auto" }}>
-            {user?.email ? user.email : ""}
-          </div>
+          {currentScenario && (
+            <div style={{ 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              color: '#111827',
+              marginBottom: '12px'
+            }}>
+              Scenario {currentScenario}
+            </div>
+          )}
+          {scenarioPrompt && (
+            <div style={{
+              fontSize: '14px',
+              color: '#4b5563',
+              lineHeight: '1.6',
+              marginTop: '12px',
+              padding: '12px',
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <div style={{ 
+                fontSize: '12px', 
+                fontWeight: 600, 
+                color: '#6b7280',
+                marginBottom: '6px'
+              }}>
+                Scenario Prompt:
+              </div>
+              {scenarioPrompt}
+            </div>
+          )}
         </div>
-        {!selectedCharacter && (
-          <div className="meta" style={{ marginTop: 8 }}>
-            Your account does not have a character/agent yet. Please contact support.
+
+        {/* Interaction Counter */}
+        <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ 
+            fontSize: '14px', 
+            color: '#6b7280',
+            marginBottom: '8px'
+          }}>
+            Interactions
+          </div>
+          <div style={{ 
+            fontSize: '24px', 
+            fontWeight: 600, 
+            color: interactionCount >= 7 ? '#16a34a' : '#111827'
+          }}>
+            {interactionCount}/7
+          </div>
+          {interactionCount >= 7 && (
+            <div style={{ 
+              fontSize: '12px', 
+              color: '#16a34a',
+              marginTop: '8px'
+            }}>
+              Survey available
+            </div>
+          )}
+        </div>
+
+        {/* Character Info */}
+        {selectedCharacter && (
+          <div style={{ padding: '20px' }}>
+            <div style={{ 
+              fontSize: '14px', 
+              color: '#6b7280',
+              marginBottom: '8px'
+            }}>
+              Your Agent
+            </div>
+            <div style={{ 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              color: '#111827'
+            }}>
+              {selectedCharacter.name || `Agent ${selectedCharacter.id}`}
+            </div>
           </div>
         )}
       </div>
 
-      <ChatBox
-        selectedCharacter={selectedCharacter}
-        userMessageCount={localMessageCount}
-        maxMessages={maxMessages}
-        onMessageSent={() => setLocalMessageCount((c) => c + 1)}
-      />
+      {/* Main Chat Area */}
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        minWidth: 0,
+        overflow: 'hidden'
+      }}>
+        <ChatBox
+          selectedCharacter={selectedCharacter}
+          userMessageCount={interactionCount}
+          maxMessages={1000000}
+          onMessageSent={handleMessageSent}
+          initialChatHistory={chatHistory}
+          onChatHistoryUpdate={setChatHistory}
+        />
+      </div>
+
+      {/* Survey Dialog */}
+      {selectedCharacter && (
+        <CharacterInteractionSurvey
+          characterId={String(selectedCharacter.id)}
+          characterName={selectedCharacter.name || `Agent ${selectedCharacter.id}`}
+          open={surveyOpen}
+          onClose={() => setSurveyOpen(false)}
+          onComplete={handleSurveyComplete}
+        />
+      )}
     </div>
   );
 }
-
- 

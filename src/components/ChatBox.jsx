@@ -1,44 +1,124 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { sendChat } from '../api';
+import { sendChat, getChatHistory } from '../api';
 
-export default function ChatBox({ selectedCharacter, userMessageCount, maxMessages, onMessageSent }) {
+export default function ChatBox({ 
+  selectedCharacter, 
+  userMessageCount, 
+  maxMessages, 
+  onMessageSent,
+  initialChatHistory = [],
+  onChatHistoryUpdate
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const scroller = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Convert backend message format to display format
+  const convertMessage = (msg) => {
+    const isUser = msg.sender === 'participant' || msg.sender === 'user' || msg.role === 'user';
+    return {
+      role: isUser ? 'user' : 'assistant',
+      content: msg.message || msg.content || '',
+      timestamp: msg.timestamp || msg.created_at
+    };
+  };
+
+  // Load chat history from backend
+  useEffect(() => {
+    if (!selectedCharacter?.id) {
+      setMessages([]);
+      return;
+    }
+
+    const loadHistory = async () => {
+      try {
+        setLoadingHistory(true);
+        const history = await getChatHistory(String(selectedCharacter.id));
+        if (Array.isArray(history)) {
+          // Sort by timestamp
+          const sorted = [...history].sort((a, b) => {
+            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            return timeA - timeB;
+          });
+          const converted = sorted.map(convertMessage);
+          setMessages(converted);
+          if (onChatHistoryUpdate) {
+            onChatHistoryUpdate(sorted);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load chat history:', err);
+        // Fallback to initialChatHistory if provided
+        if (initialChatHistory.length > 0) {
+          const converted = initialChatHistory.map(convertMessage);
+          setMessages(converted);
+        }
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [selectedCharacter?.id]);
+
+  // Also use initialChatHistory if provided and we don't have messages yet
+  useEffect(() => {
+    if (initialChatHistory.length > 0 && messages.length === 0 && !loadingHistory) {
+      const converted = initialChatHistory.map(convertMessage);
+      setMessages(converted);
+    }
+  }, [initialChatHistory]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Clear messages when character changes
-  useEffect(() => {
-    setMessages([]);
-  }, [selectedCharacter?.id]);
-
   const onSend = async () => {
     const text = input.trim();
     if (!text || !selectedCharacter || userMessageCount >= maxMessages) return;
     
     setInput('');
-    const user = { role: 'user', content: text };
-    setMessages(prev => [...prev, user]);
+    const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
     
     try {
       const res = await sendChat(selectedCharacter.id, text);
-      const bot = { role: 'assistant', content: res.reply };
-      setMessages(prev => [...prev, bot]);
+      const botMsg = { 
+        role: 'assistant', 
+        content: res.reply,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => {
+        const updated = [...prev, botMsg];
+        // Update parent with full history
+        if (onChatHistoryUpdate) {
+          const backendFormat = updated.map(msg => ({
+            sender: msg.role === 'user' ? 'participant' : 'agent',
+            message: msg.content,
+            timestamp: msg.timestamp,
+            role: msg.role
+          }));
+          onChatHistoryUpdate(backendFormat);
+        }
+        return updated;
+      });
       // Notify parent that a message was sent
       if (onMessageSent) {
         onMessageSent();
       }
     } catch(e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Error: ' + e.message }]);
-      // Remove the user message if send failed
-      setMessages(prev => prev.filter((m, i) => i !== prev.length - 1 || m.role !== 'user'));
+      setMessages(prev => {
+        const errorMsg = { role: 'assistant', content: 'Error: ' + e.message };
+        const updated = [...prev, errorMsg];
+        // Remove the user message if send failed
+        return updated.filter((m, i) => i !== updated.length - 2 || m.role !== 'user');
+      });
     } finally {
       setLoading(false);
     }
@@ -60,9 +140,14 @@ export default function ChatBox({ selectedCharacter, userMessageCount, maxMessag
             Please select a character using the buttons above to start chatting.
           </div>
         )}
-        {selectedCharacter && messages.length === 0 && (
+        {selectedCharacter && messages.length === 0 && !loadingHistory && (
           <div className="meta" style={{ textAlign: 'center', padding: '20px' }}>
             Now chatting with <strong>{selectedCharacter.name}</strong>. Say hello!
+          </div>
+        )}
+        {loadingHistory && (
+          <div className="meta" style={{ textAlign: 'center', padding: '20px' }}>
+            Loading chat history...
           </div>
         )}
         {messages.map((m, i) => (
