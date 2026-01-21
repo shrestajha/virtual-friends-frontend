@@ -172,6 +172,33 @@ export default function LoginForm({
           </button>
         </form>
 
+        <div style={{ textAlign: "center", marginTop: "16px", fontSize: "14px", color: "var(--muted)" }}>
+          Don't have an account?{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setMode("register");
+              setError("");
+              setSuccessMessage("");
+              // Update URL if possible
+              if (window.history && window.location.pathname === "/login") {
+                window.history.pushState({}, "", "/signup");
+              }
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--accent)",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: 0,
+              font: "inherit",
+            }}
+          >
+            Sign up
+          </button>
+        </div>
+
         {successMessage && (
           <div className="success">{successMessage}</div>
         )}
@@ -238,6 +265,33 @@ export default function LoginForm({
           Sign Up
         </button>
       </form>
+
+      <div style={{ textAlign: "center", marginTop: "16px", fontSize: "14px", color: "var(--muted)" }}>
+        Already have an account?{" "}
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setError("");
+            setSuccessMessage("");
+            // Update URL if possible
+            if (window.history && window.location.pathname === "/signup") {
+              window.history.pushState({}, "", "/login");
+            }
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--accent)",
+            cursor: "pointer",
+            textDecoration: "underline",
+            padding: 0,
+            font: "inherit",
+          }}
+        >
+          Log in
+        </button>
+      </div>
 
       {error && <div className="error">{error}</div>}
     </div>
