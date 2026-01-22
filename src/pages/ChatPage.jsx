@@ -59,14 +59,14 @@ export default function ChatPage({ user }) {
           console.log('[ChatPage] Setting character:', char);
           setSelectedCharacter(char);
           setInteractionCount(char.message_count || char.interactions || 0);
-        } else {
+    } else {
           console.warn('[ChatPage] No characters found in user data');
-        }
+    }
 
         // Load topic details from /topics/current (for scenario prompts)
-        try {
+    try {
           console.log('[ChatPage] Fetching topic details from /topics/current...');
-          const topicData = await getCurrentTopic();
+      const topicData = await getCurrentTopic();
           console.log('[ChatPage] Topic data received:', topicData);
           
           // Use topic number from /topics/current if not already set from /auth/me
@@ -77,17 +77,17 @@ export default function ChatPage({ user }) {
           
           // Store topic info for scenario prompts
           if (topicData.topic_info) {
-            setTopicInfo(topicData.topic_info);
+      setTopicInfo(topicData.topic_info);
           }
           
           // Set current scenario from /topics/current if not already set from /auth/me
           if (!scenarioFromAuth) {
-            if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
+      if (topicData.current_scenario === 'A' || topicData.current_scenario === 'B') {
               console.log('[ChatPage] Scenario from /topics/current:', topicData.current_scenario);
-              setCurrentScenario(topicData.current_scenario);
-            } else if (!topicData.scenario_a_completed) {
+        setCurrentScenario(topicData.current_scenario);
+      } else if (!topicData.scenario_a_completed) {
               console.log('[ChatPage] Setting Scenario A (default)');
-              setCurrentScenario('A');
+        setCurrentScenario('A');
               // Initialize Scenario A if not already done
               if (userData.characters && userData.characters.length > 0) {
                 try {
@@ -128,22 +128,40 @@ export default function ChatPage({ user }) {
           }
         }
 
-        // Load chat history
+        // CRITICAL: Load chat history immediately after login (as per guide)
         if (userData.characters && userData.characters.length > 0) {
-          const charId = userData.characters[0].id;
+          const char = userData.characters[0];
+          const charId = char.id;
+          
+          // Store agent ID in localStorage for persistence (as per guide)
+          localStorage.setItem('agent_id', String(charId));
+          if (char.name) {
+            localStorage.setItem('agent_name', char.name);
+          }
+          
+          console.log('[ChatPage] Loading chat history for agent:', charId);
           try {
             const history = await getChatHistory(String(charId));
+            console.log('[ChatPage] Chat history response:', history);
+            
             if (Array.isArray(history)) {
-                  // Sort by timestamp
+              // Backend returns messages sorted by created_at ascending
+              // Display them in chronological order (already sorted)
               const sorted = [...history].sort((a, b) => {
-                    const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-                    const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-                    return timeA - timeB;
-                  });
+                const timeA = new Date(a.timestamp || a.created_at || a.created_at_est || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || b.created_at_est || 0).getTime();
+                return timeA - timeB;
+              });
+              console.log(`[ChatPage] ✅ Loaded ${sorted.length} messages from history`);
               setChatHistory(sorted);
+            } else {
+              console.warn('[ChatPage] Chat history is not an array:', history);
+              setChatHistory([]);
           }
         } catch (err) {
-            console.error('Failed to load chat history:', err);
+            console.error('[ChatPage] ❌ Failed to load chat history:', err);
+            // Initialize with empty array if history fails to load (as per guide)
+            setChatHistory([]);
           }
         }
 
@@ -153,18 +171,18 @@ export default function ChatPage({ user }) {
           try {
             const surveyStatus = await getCharacterSurveyStatus(String(charId));
             setSurveyAvailable(surveyStatus.available || false);
-          } catch (err) {
+        } catch (err) {
             console.error('Failed to check survey status:', err);
-          }
+        }
       }
     } catch (error) {
         console.error('Failed to load data:', error);
         // Don't block UI if topic/scenario data fails - show what we have
         // This allows the chat to work even if topic endpoints are down
     } finally {
-        setLoading(false);
-      }
-    };
+      setLoading(false);
+    }
+  };
 
     loadData();
   }, [user]);
@@ -181,10 +199,10 @@ export default function ChatPage({ user }) {
           completedSurveys: Array.from(completedSurveys)
         });
         setSurveyOpen(true);
-      } else {
+            } else {
         console.log('[ChatPage] Survey already completed for this character:', charId);
-      }
-    } else {
+          }
+        } else {
       console.log('[ChatPage] Survey check:', {
         interactionCount: interactionCount,
         surveyOpen: surveyOpen,
@@ -217,7 +235,7 @@ export default function ChatPage({ user }) {
             const charId = String(selectedCharacter.id);
             if (!completedSurveys.has(charId)) {
               console.log('[ChatPage] Opening survey based on backend show_survey flag');
-              setSurveyOpen(true);
+          setSurveyOpen(true);
             }
           }
         } catch (err) {
@@ -227,8 +245,8 @@ export default function ChatPage({ user }) {
     }
     
     // Reload user data to get updated interaction count from backend
-    try {
-      const userData = await me();
+      try {
+        const userData = await me();
       if (userData.characters && userData.characters.length > 0) {
         const char = userData.characters[0];
         const newCount = char.message_count || char.interactions || 0;
@@ -244,7 +262,7 @@ export default function ChatPage({ user }) {
           } catch (err) {
             console.error('Failed to check survey status:', err);
             // Default to available if check fails
-            setSurveyAvailable(true);
+              setSurveyAvailable(true);
           }
         }
       }
@@ -254,14 +272,14 @@ export default function ChatPage({ user }) {
         const history = await getChatHistory(String(selectedCharacter.id));
         if (Array.isArray(history)) {
           const sorted = [...history].sort((a, b) => {
-            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                  const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                  const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
             return timeA - timeB;
           });
           setChatHistory(sorted);
         }
       }
-    } catch (err) {
+      } catch (err) {
       console.error('Failed to reload data after message:', err);
     }
   };
@@ -292,7 +310,7 @@ export default function ChatPage({ user }) {
       // If Scenario B completed, move to next topic
       else if (currentScenario === 'B' && topicData.scenario_b_completed) {
           setCurrentScenario(null);
-      setInteractionCount(0);
+    setInteractionCount(0);
         // Topic will advance automatically on backend
       }
     } catch (error) {
@@ -320,7 +338,7 @@ export default function ChatPage({ user }) {
     hasTopicInfo: !!topicInfo
   });
 
-  return (
+    return (
     <div style={{ 
       display: 'flex', 
       flex: 1,

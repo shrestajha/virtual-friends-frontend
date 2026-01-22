@@ -26,44 +26,59 @@ export default function ChatBox({
     };
   };
 
-  // Load chat history from backend
+  // Load chat history from backend (fallback if not provided via props)
   useEffect(() => {
     if (!selectedCharacter?.id) {
       setMessages([]);
       return;
     }
 
+    // If initialChatHistory is provided, use it (loaded by parent after login)
+    // Otherwise, load it here as fallback
+    if (initialChatHistory.length > 0) {
+      console.log('[ChatBox] Using initialChatHistory from parent:', initialChatHistory.length, 'messages');
+      const converted = initialChatHistory.map(convertMessage);
+      setMessages(converted);
+      return;
+    }
+
+    // Fallback: Load history if not provided by parent
     const loadHistory = async () => {
       try {
         setLoadingHistory(true);
+        console.log('[ChatBox] Loading chat history for character:', selectedCharacter.id);
         const history = await getChatHistory(String(selectedCharacter.id));
+        console.log('[ChatBox] Chat history loaded:', history);
+        
         if (Array.isArray(history)) {
-          // Sort by timestamp
+          // Backend returns messages sorted by created_at ascending
+          // Display them in chronological order (already sorted)
           const sorted = [...history].sort((a, b) => {
-            const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-            const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+            const timeA = new Date(a.timestamp || a.created_at || a.created_at_est || 0).getTime();
+            const timeB = new Date(b.timestamp || b.created_at || b.created_at_est || 0).getTime();
             return timeA - timeB;
           });
           const converted = sorted.map(convertMessage);
+          console.log(`[ChatBox] ✅ Loaded ${converted.length} messages from history`);
           setMessages(converted);
           if (onChatHistoryUpdate) {
             onChatHistoryUpdate(sorted);
           }
+        } else {
+          console.warn('[ChatBox] Chat history is not an array:', history);
+          setMessages([]);
         }
       } catch (err) {
-        console.error('Failed to load chat history:', err);
-        // Fallback to initialChatHistory if provided
-        if (initialChatHistory.length > 0) {
-          const converted = initialChatHistory.map(convertMessage);
-          setMessages(converted);
-        }
+        console.error('[ChatBox] ❌ Failed to load chat history:', err);
+        // Initialize with empty array if history fails to load (as per guide)
+        setMessages([]);
       } finally {
         setLoadingHistory(false);
       }
     };
 
     loadHistory();
-  }, [selectedCharacter?.id]);
+  }, [selectedCharacter?.id, initialChatHistory]);
 
   // Also use initialChatHistory if provided and we don't have messages yet
   useEffect(() => {
@@ -92,13 +107,16 @@ export default function ChatBox({
       const res = await sendChat(selectedCharacter.id, text);
       console.log('[ChatBox] Chat response received:', res);
       
+      // Add agent's reply to UI (as per guide: append new messages to existing history)
       const botMsg = { 
         role: 'assistant', 
         content: res.reply,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => {
+        // Append the new agent message to existing messages (chronological order maintained)
         const updated = [...prev, botMsg];
+        console.log('[ChatBox] Updated messages count:', updated.length);
         // Update parent with full history
         if (onChatHistoryUpdate) {
           const backendFormat = updated.map(msg => ({
