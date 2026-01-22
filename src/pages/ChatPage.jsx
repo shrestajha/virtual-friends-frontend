@@ -195,13 +195,36 @@ export default function ChatPage({ user }) {
   }, [interactionCount, surveyOpen, selectedCharacter, completedSurveys]);
 
   // Handle message sent - increment interaction count and reload data
-  const handleMessageSent = async () => {
+  // showSurveyFromBackend: true if backend response included show_survey: true
+  const handleMessageSent = async (showSurveyFromBackend = false) => {
     // Increment immediately for responsive UI
     setInteractionCount(prev => {
       const newCount = prev + 1;
-      console.log('[ChatPage] Message sent, interaction count:', newCount);
+      console.log('[ChatPage] Message sent, interaction count:', newCount, 'showSurveyFromBackend:', showSurveyFromBackend);
       return newCount;
     });
+    
+    // If backend explicitly says to show survey, check survey status and open it
+    if (showSurveyFromBackend) {
+      console.log('[ChatPage] Backend indicated survey should be shown (show_survey: true)');
+      if (selectedCharacter) {
+        try {
+          const surveyStatus = await getCharacterSurveyStatus(String(selectedCharacter.id));
+          console.log('[ChatPage] Survey status check:', surveyStatus);
+          setSurveyAvailable(surveyStatus.available !== false);
+          // If available and not completed, open survey
+          if (surveyStatus.available && !surveyStatus.completed) {
+            const charId = String(selectedCharacter.id);
+            if (!completedSurveys.has(charId)) {
+              console.log('[ChatPage] Opening survey based on backend show_survey flag');
+              setSurveyOpen(true);
+            }
+          }
+        } catch (err) {
+          console.error('[ChatPage] Failed to check survey status:', err);
+        }
+      }
+    }
     
     // Reload user data to get updated interaction count from backend
     try {
@@ -212,12 +235,12 @@ export default function ChatPage({ user }) {
         console.log('[ChatPage] Updated interaction count from backend:', newCount);
         setInteractionCount(newCount);
         
-        // Check survey availability after updating count
-        if (newCount >= 7) {
+        // Check survey availability after updating count (if not already checked from show_survey)
+        if (newCount >= 7 && !showSurveyFromBackend) {
           try {
             const surveyStatus = await getCharacterSurveyStatus(String(char.id));
             setSurveyAvailable(surveyStatus.available !== false); // Default to true if not explicitly false
-            console.log('[ChatPage] Survey availability:', surveyStatus.available);
+            console.log('[ChatPage] Survey availability check:', surveyStatus);
           } catch (err) {
             console.error('Failed to check survey status:', err);
             // Default to available if check fails

@@ -5,7 +5,7 @@ export default function ChatBox({
   selectedCharacter, 
   userMessageCount, 
   maxMessages, 
-  onMessageSent,
+  onMessageSent, // Can accept boolean: onMessageSent(showSurvey)
   initialChatHistory = [],
   onChatHistoryUpdate
 }) {
@@ -88,7 +88,10 @@ export default function ChatBox({
     setLoading(true);
     
     try {
+      console.log('[ChatBox] Sending message to character:', selectedCharacter.id);
       const res = await sendChat(selectedCharacter.id, text);
+      console.log('[ChatBox] Chat response received:', res);
+      
       const botMsg = { 
         role: 'assistant', 
         content: res.reply,
@@ -108,11 +111,22 @@ export default function ChatBox({
         }
         return updated;
       });
-      // Notify parent that a message was sent
-      if (onMessageSent) {
-        onMessageSent();
+      
+      // Check if survey should be shown (from backend response)
+      if (res.show_survey === true) {
+        console.log('[ChatBox] Backend indicates survey should be shown');
+        // Notify parent to show survey
+        if (onMessageSent) {
+          onMessageSent(true); // Pass true to indicate survey should show
+        }
+      } else {
+        // Notify parent that a message was sent (normal case)
+        if (onMessageSent) {
+          onMessageSent(false);
+        }
       }
     } catch(e) {
+      console.error('[ChatBox] Error sending message:', e);
       setMessages(prev => {
         const errorMsg = { role: 'assistant', content: 'Error: ' + e.message };
         const updated = [...prev, errorMsg];
