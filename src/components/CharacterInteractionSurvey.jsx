@@ -74,14 +74,23 @@ export default function CharacterInteractionSurvey({
   const checkStatus = async () => {
     try {
       setCheckingStatus(true);
+      console.log('[Survey] Checking survey status for characterId:', characterId);
       const status = await getCharacterSurveyStatus(characterId);
+      console.log('[Survey] Survey status response:', status);
       if (status.completed) {
+        console.log('[Survey] Survey already completed');
         setAlreadyCompleted(true);
       } else {
+        console.log('[Survey] Survey not completed yet');
         setAlreadyCompleted(false);
       }
     } catch (err) {
-      console.error('Failed to check survey status:', err);
+      console.error('[Survey] Failed to check survey status:', err);
+      console.error('[Survey] Error details:', {
+        message: err.message,
+        characterId: characterId,
+        stack: err.stack
+      });
       // Continue anyway - allow user to try submitting
     } finally {
       setCheckingStatus(false);
@@ -112,8 +121,16 @@ export default function CharacterInteractionSurvey({
     setLoading(true);
     setError(null);
 
+    console.log('[Survey] Submitting survey with:', {
+      characterId: characterId,
+      characterName: characterName,
+      answersCount: Object.keys(answers).length,
+      answers: answers
+    });
+
     try {
       await submitCharacterSurvey(characterId, answers);
+      console.log('[Survey] Survey submitted successfully');
       // Success - call onComplete callback
       if (onComplete) {
         onComplete(characterId, characterName);
@@ -121,12 +138,23 @@ export default function CharacterInteractionSurvey({
       // Close dialog
       onClose();
     } catch (err) {
-      console.error('Survey submission error:', err);
+      console.error('[Survey] Survey submission error:', err);
+      console.error('[Survey] Error details:', {
+        message: err.message,
+        characterId: characterId,
+        characterName: characterName,
+        fullError: err,
+        errorString: String(err)
+      });
+      
       const errorMessage = err.message || 'Failed to submit survey';
+      console.log('[Survey] Error message:', errorMessage);
       
       // Handle specific error cases
       if (errorMessage.includes('not at 7') || errorMessage.includes('7 interactions') || errorMessage.includes('not at 10') || errorMessage.includes('10 interactions') || errorMessage.includes('not at 15') || errorMessage.includes('15 interactions')) {
-        setError('This character needs 7 interactions before you can submit the survey.');
+        console.error('[Survey] ERROR: Backend says user does not have 7 interactions, but frontend shows 7+ interactions');
+        console.error('[Survey] This suggests a mismatch between frontend and backend interaction counts');
+        setError(`This character needs 7 interactions before you can submit the survey. Backend error: ${errorMessage}`);
       } else if (errorMessage.includes('already completed')) {
         setError('You\'ve already completed the survey for this character.');
         setAlreadyCompleted(true);

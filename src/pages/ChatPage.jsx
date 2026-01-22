@@ -174,9 +174,23 @@ export default function ChatPage({ user }) {
     if (interactionCount >= 7 && !surveyOpen && selectedCharacter) {
       const charId = String(selectedCharacter.id);
       if (!completedSurveys.has(charId)) {
-        console.log('[ChatPage] Opening survey - 7 interactions reached');
+        console.log('[ChatPage] Opening survey - 7 interactions reached', {
+          interactionCount: interactionCount,
+          characterId: charId,
+          characterName: selectedCharacter.name,
+          completedSurveys: Array.from(completedSurveys)
+        });
         setSurveyOpen(true);
+      } else {
+        console.log('[ChatPage] Survey already completed for this character:', charId);
       }
+    } else {
+      console.log('[ChatPage] Survey check:', {
+        interactionCount: interactionCount,
+        surveyOpen: surveyOpen,
+        hasCharacter: !!selectedCharacter,
+        reason: interactionCount < 7 ? 'Not enough interactions' : surveyOpen ? 'Survey already open' : !selectedCharacter ? 'No character' : 'Unknown'
+      });
     }
   }, [interactionCount, surveyOpen, selectedCharacter, completedSurveys]);
 
